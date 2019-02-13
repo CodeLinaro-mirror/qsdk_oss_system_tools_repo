@@ -65,8 +65,14 @@ class PageTracking(RamParser):
                 look = self.ramdump.unwind_lookup(addr)
                 if look is None:
                     break
-                symname, offset = look
-                unwind_dat = '      [<{0:x}>] {1}+0x{2:x}\n'.format(addr,
+
+                symname, offset, mname  = look
+
+                if (mname is not None):
+                    unwind_dat = '      [<{0:x}>] {1}+0x{2:x} [{3}.ko]\n'.format(addr,
+                                                                    symname, offset, mname)
+                else:
+                    unwind_dat = '      [<{0:x}>] {1}+0x{2:x}\n'.format(addr,
                                                                     symname, offset)
                 out_tracking.write(unwind_dat)
                 alloc_str = alloc_str + unwind_dat

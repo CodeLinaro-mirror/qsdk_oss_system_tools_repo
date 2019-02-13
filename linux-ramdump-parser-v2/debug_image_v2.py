@@ -67,14 +67,16 @@ class DebugImage_v2():
         self.dump_table_id_lookup_table = []
         self.dump_data_id_lookup_table  = []
 
-    def parse_cpu_ctx(self, start, end, client_id, ram_dump):
+    def parse_cpu_ctx(self, version,  start, end, client_id, ram_dump):
         core = client_id - client.MSM_DUMP_DATA_CPU_CTX
+        if ram_dump.Is_Dakota():
+            core = 0
 
         print_out_str(
             'Parsing CPU{2} context start {0:x} end {1:x}'.format(start, end, core))
 
         regs = TZRegDump_v2()
-        if regs.init_regs(start, end, core, ram_dump) is False:
+        if regs.init_regs(version, start, end, core, ram_dump) is False:
             print_out_str('!!! Could not get registers from TZ dump')
             return
         regs.dump_core_pc(ram_dump)

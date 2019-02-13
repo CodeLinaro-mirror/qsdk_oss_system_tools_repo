@@ -40,7 +40,7 @@ class ListWalker(object):
         """
 
         while True:
-            if node_addr == 0:
+            if node_addr is None or node_addr == 0:
                 break
 
             funcargs = [node_addr - self.list_elem_offset] + list(args)

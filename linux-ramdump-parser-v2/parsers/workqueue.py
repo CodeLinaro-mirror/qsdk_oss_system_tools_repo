@@ -96,8 +96,8 @@ class Workqueues(RamParser):
                     current_work_func = ram_dump.read_word(
                         current_work_addr + work_func_offset)
                     wname = ram_dump.unwind_lookup(current_work_func)
-                    if wname is not None:
-                        worker_name, a = wname
+                    if wname is not None and len(wname) > 3:
+                        worker_name, a, foo, symtab_st_size  = wname
                     else:
                         worker_name = 'Worker at 0x{0:x}'.format(
                             current_work_func)
@@ -135,8 +135,8 @@ class Workqueues(RamParser):
                     current_work_func = ram_dump.read_word(
                         current_work_addr + work_func_offset)
                     wname = ram_dump.unwind_lookup(current_work_func)
-                    if wname is not None:
-                        current_work_name, foo = wname
+                    if wname is not None and len(wname) > 3:
+                        current_work_name, foo, bar, symtab_st_size = wname
                     else:
                         current_work_name = 'worker at 0x{0:x}'.format(
                             current_work_func)
@@ -173,8 +173,8 @@ class Workqueues(RamParser):
 
                 if ram_dump.virt_to_phys(work_func_addr) != 0:
                     wname = ram_dump.unwind_lookup(work_func_addr)
-                    if wname is not None:
-                        work_func_name, foo = wname
+                    if wname is not None and len(wname) > 3:
+                        work_func_name, foo, mname, symtab_st_size  = wname
                     else:
                         work_func_name = 'worker at 0x{0:x}'.format(
                             work_func_addr)
@@ -254,8 +254,9 @@ class Workqueues(RamParser):
                         current_work_func = ram_dump.read_word(
                             current_work_addr + work_func_offset)
                         wname = ram_dump.unwind_lookup(current_work_func)
-                        if wname is not None:
-                            worker_name, a = wname
+
+                        if wname is not None and len(wname) > 3:
+                            work_func_name, foo, mname, symtab_st_size  = wname
                         else:
                             worker_name = 'Worker at 0x{0:x}'.format(
                                 current_work_func)
@@ -297,8 +298,9 @@ class Workqueues(RamParser):
                         current_work_func = ram_dump.read_word(
                             current_work_addr + work_func_offset)
                         wname = ram_dump.unwind_lookup(current_work_func)
-                        if wname is not None:
-                            current_work_name, foo = wname
+                        if wname is not None and len(wname) > 3:
+                            current_work_name, foo, mname, symtab_st_size  = wname
+
                         else:
                             current_work_name = 'worker at 0x{0:x}'.format(
                                 current_work_func)
@@ -329,8 +331,9 @@ class Workqueues(RamParser):
                     next_work_entry = next_work_temp
 
                     if ram_dump.virt_to_phys(work_func_addr) != 0:
-                        work_func_name, foo = ram_dump.unwind_lookup(
-                            work_func_addr)
+                        wname = ram_dump.unwind_lookup(work_func_addr)
+                        if wname is not None and len(wname) > 3:
+                            work_func_name, foo, mname, symtab_st_size  = wname
                         if i == 0:
                             print_out_str(
                                 'Pending unbound entry: {0}'.format(work_func_name))
@@ -359,8 +362,8 @@ class Workqueues(RamParser):
             current_work_func = self.ramdump.read_word(
                                      current_work_addr + work_func_offset)
             wname = self.ramdump.unwind_lookup(current_work_func)
-            if wname is not None:
-                worker_name, a = wname
+            if wname is not None and len(wname) > 3:
+                work_func_name, a, mname, symtab_st_size  = wname
             else:
                 worker_name = 'Worker at 0x{0:x}'.format(
                                     current_work_func)
@@ -378,7 +381,9 @@ class Workqueues(RamParser):
             # virt to phys may throw an exception if the virtual address is bad
             # if that happens, just skip any printing
             phys = self.ramdump.virt_to_phys(work_func_addr)
-            work_func_name, foo = self.ramdump.unwind_lookup(work_func_addr)
+            wname = ram_dump.unwind_lookup(work_func_addr)
+            if wname is not None and len(wname) > 3:
+                work_func_name, foo, mname, symtab_st_size  = wname
             print_out_str(
                 'Pending entry: {0}'.format(work_func_name))
         except:

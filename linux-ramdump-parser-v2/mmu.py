@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -81,7 +81,7 @@ class Armv7MMU(MMU):
         self.secondary_page_tables = [
             [0 for col in range(256)] for row in range(4096)]
 
-        msm_ttbr0 = self.ramdump.phys_offset + 0x4000
+        msm_ttbr0 = self.ramdump.phys_offset + self.ramdump.swapper_pg_dir_addr
         self.ttbr = msm_ttbr0
         virt_address = 0x0
         gb_i = 0
@@ -502,10 +502,8 @@ class Armv8MMU(MMU):
             # next_level_base_addr_upper
             descriptor.add_field('next_level_base_addr_upper', (47, 12))
         else:
-            raise Exception(
-                'Invalid stage 1 first- or second-level translation\ndescriptor: (%s)\naddr: (%s)'
-                % (str(descriptor), str(addr))
-            )
+	    return None
+
         return descriptor
 
     def do_fl_level_lookup(self, table_base_address, table_index,
@@ -523,10 +521,7 @@ class Armv8MMU(MMU):
         if descriptor.dtype == Armv8MMU.TL_DESCRIPTOR_PAGE:
             descriptor.add_field('output_address', (47, 12))
         else:
-            raise Exception(
-                'Invalid stage 1 third-level translation\ndescriptor: (%s)\naddr: (%s)'
-                % (str(descriptor), str(addr))
-            )
+	    return None
         return descriptor
 
     def do_level_lookup(self, table_base_address, table_index,
@@ -587,9 +582,11 @@ class Armv8MMU(MMU):
             page_index=(11,0))
 
         fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
-
-        if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
-            return self.fl_block_desc_2_phys(fl_desc, virt_r)
+	try:
+            if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
+                return self.fl_block_desc_2_phys(fl_desc, virt_r)
+	except:
+	    return None
 
         base = Register(base=(47, 12))
         base.base = fl_desc.next_level_base_addr_upper

@@ -29,7 +29,7 @@ from ramdump import RamDump
 from print_out import print_out_str, set_outfile, print_out_section, print_out_exception, flush_outfile
 
 # Please update version when something is changed!'
-VERSION = '2.0'
+VERSION = '2.0.26'
 
 # quick check of system requirements:
 major, minor = sys.version_info[:2]
@@ -126,6 +126,16 @@ if __name__ == '__main__':
                       help='Use QTF tool to parse and save QDSS trace data')
     parser.add_option('', '--qtf-path', dest='qtf_path',
                       help='QTF tool executable')
+    parser.add_option('', '--cpu0-reg-path', dest='cpu0_reg_path',
+                      help='CPU 0 Registers')
+    parser.add_option('', '--cpu1-reg-path', dest='cpu1_reg_path',
+                      help='CPU 1 Registers')
+    parser.add_option('', '--qca-nss-drv-path', dest='qca_nss_drv_path',
+                      help='qca nss drv path')
+    parser.add_option('', '--readelf-path', dest='readelf_path',
+                      help='readelf path')
+    parser.add_option('', '--custom', dest='custom',
+                      help='custom specific issue')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -270,8 +280,13 @@ if __name__ == '__main__':
     if options.everything:
         options.qtf = True
 
-    dump = RamDump(options.vmlinux, nm_path, gdb_path, objdump_path, options.ram_addr,
-                   options.autodump, options.phys_offset, options.outdir, options.qtf_path,
+    #path to nss driver
+    qca_nss_drv_path = options.qca_nss_drv_path
+    readelf_path = options.readelf_path
+
+    dump = RamDump(options.vmlinux, nm_path, gdb_path, readelf_path, qca_nss_drv_path, objdump_path, options.ram_addr,
+                   options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom,
+                   options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=options.arm64,
                    page_offset=options.page_offset, qtf=options.qtf)

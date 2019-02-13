@@ -26,6 +26,8 @@ PF_W = 2
 class ROData(RamParser):
 
     def parse(self):
+        print_out_str('check rodata disabled')
+        return
         stext = self.ramdump.addr_lookup('stext')
         etext = self.ramdump.addr_lookup('_etext')
 

@@ -17,6 +17,7 @@ from qdss import QDSSDump
 from cachedump import save_l1_dump, parse_cache_dump
 from watchdog import TZRegDump
 from debug_image_v2 import DebugImage_v2
+from debug_image_v3 import DebugImage_v3
 
 QDSS_MAGIC = 0x5D1DB1Bf
 
@@ -193,6 +194,22 @@ class DebugImage(RamParser):
         self.qdss.dump_all(self.ramdump)
 
     def parse(self):
+        if self.ramdump.Is_Dakota():
+            regs = DebugImage_v2()
+            client_start = 0x87b000e0
+            client_end = 0x500
+            client_name = "Dump"
+            regs.parse_cpu_ctx(3, client_start, client_end, 1, self.ramdump)
+            return
+
+        if self.ramdump.Is_Hawkeye():
+            regs = DebugImage_v3()
+            client_start = 0x08600658
+            client_end = 0x500
+            client_name = "Dump"
+            regs.parse_cpu_ctx(3, client_start, client_end, 1, self.ramdump)
+            return
+
         # use the mem_dump_data variable to detect if debug image feature was compiled in,
         # and memdump data variable for debug image v2 feature, rather than relying on
         # configuration option.

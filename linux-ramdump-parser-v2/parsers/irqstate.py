@@ -9,6 +9,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
+import re
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
 
@@ -24,7 +25,7 @@ class IrqParse(RamParser):
         cpu_present_bits = ram_dump.read_word(cpu_present_bits_addr)
         cpus = bin(cpu_present_bits).count('1')
         irq_desc = ram_dump.addr_lookup('irq_desc')
-        foo, irq_desc_size = ram_dump.unwind_lookup(irq_desc, 1)
+        foo, irq_desc_size, dummy, symtab_st_size = ram_dump.unwind_lookup(irq_desc, 1)
         h_irq_offset = ram_dump.field_offset('struct irq_desc', 'handle_irq')
         irq_num_offset = ram_dump.field_offset('struct irq_data', 'irq')
         irq_data_offset = ram_dump.field_offset('struct irq_desc', 'irq_data')
@@ -74,8 +75,12 @@ class IrqParse(RamParser):
 
     def radix_tree_lookup_element(self, ram_dump, root_addr, index):
         rnode_offset = ram_dump.field_offset('struct radix_tree_root', 'rnode')
-        rnode_height_offset = ram_dump.field_offset(
-            'struct radix_tree_node', 'height')
+        if re.search('3\.18\.\d', self.ramdump.version) is not None or (ram_dump.kernel_version[0], ram_dump.kernel_version[1]) >= (4, 4):
+            rnode_height_offset = ram_dump.field_offset(
+                 'struct radix_tree_node', 'path')
+        else:
+            rnode_height_offset = ram_dump.field_offset(
+                 'struct radix_tree_node', 'height')
         slots_offset = ram_dump.field_offset('struct radix_tree_node', 'slots')
         pointer_size = ram_dump.sizeof('struct radix_tree_node *')
 
@@ -96,7 +101,7 @@ class IrqParse(RamParser):
         if height > len(height_to_maxindex):
             return None
 
-        if index > height_to_maxindex[height]:
+        if height is None or index > height_to_maxindex[height]:
             return None
 
         shift = (height - 1) * radix_tree_map_shift
@@ -139,8 +144,8 @@ class IrqParse(RamParser):
                 ram_dump, irq_desc_tree, i)
             if irq_desc is None:
                 continue
-            irqnum = ram_dump.read_word(irq_desc + irq_num_offset)
-            irqcount = ram_dump.read_word(irq_desc + irq_count_offset)
+            irqnum = ram_dump.read_u32(irq_desc + irq_num_offset)
+            irqcount = ram_dump.read_u32(irq_desc + irq_count_offset)
             action = ram_dump.read_word(irq_desc + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(irq_desc + kstat_irqs_offset)
             irq_stats_str = ''
@@ -149,7 +154,7 @@ class IrqParse(RamParser):
                 break
 
             for j in ram_dump.iter_cpus():
-                irq_statsn = ram_dump.read_int(kstat_irqs_addr, cpu=j)
+                irq_statsn = ram_dump.read_u32(kstat_irqs_addr, cpu=j)
                 irq_stats_str = irq_stats_str + \
                     '{0:10} '.format('{0}'.format(irq_statsn))
 

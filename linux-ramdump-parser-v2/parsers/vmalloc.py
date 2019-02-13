@@ -41,7 +41,7 @@ class Vmalloc(RamParser):
 
         addr = self.ramdump.read_word(vm + addr_offset)
         caller = self.ramdump.read_word(vm + caller_offset)
-        nr_pages = self.ramdump.read_word(vm + nr_pages_offset)
+        nr_pages = self.ramdump.read_u32(vm + nr_pages_offset)
         phys_addr = self.ramdump.read_word(vm + phys_addr_offset)
         flags = self.ramdump.read_word(vm + flags_offset)
         size = self.ramdump.read_word(vm + size_offset)
@@ -53,10 +53,18 @@ class Vmalloc(RamParser):
 
         if (caller != 0):
             a = self.ramdump.unwind_lookup(caller)
-            if a is not None:
-                symname, offset = a
-                vmalloc_str = vmalloc_str + \
-                    ' {0}+0x{1:x}'.format(symname, offset)
+            if a is not None and len(a) > 3:
+                symname, offset, mname, symtab_st_size = a
+                if (mname is not None and symtab_st_size is not None):
+                    vmalloc_str = vmalloc_str + \
+                        ' {0}+0x{1:x}/0x{3:x} [{2}.ko]'.format(symname, offset, mname, symtab_st_size)
+                elif (mname is None and symtab_st_size is not None):
+                    vmalloc_str = vmalloc_str + \
+                        ' {0}+0x{1:x}/0x(2:x)'.format(symname, offset, symtab_st_size)
+                else:
+                    vmalloc_str = vmalloc_str + \
+                        ' {0}+0x{1:x}'.format(symname, offset)
+
 
         if (nr_pages != 0):
             vmalloc_str = vmalloc_str + ' pages={0}'.format(nr_pages)
@@ -110,11 +118,14 @@ class Vmalloc(RamParser):
         vmalloc_out = self.ramdump.open_file('vmalloc.txt')
         self.vmalloc_out = vmalloc_out
 
+        head = vmlist
         while (vmlist is not None) and (vmlist != 0):
             self.print_vm(vmlist)
 
             vmlist = self.ramdump.read_word(vmlist + next_offset)
 
+            if(head == vmlist):
+                break
         print_out_str('---wrote vmalloc to vmalloc.txt')
         vmalloc_out.close()
 
@@ -122,6 +133,8 @@ class Vmalloc(RamParser):
         out_path = self.ramdump.outdir
         ver = self.ramdump.version
         if re.search('3\.10\.\d', ver) is not None:
+            self.print_vmalloc_info_3_10(out_path)
+        elif (self.ramdump.Is_Hawkeye and (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (4, 4)):
             self.print_vmalloc_info_3_10(out_path)
         else:
             self.print_vmalloc_info(out_path)

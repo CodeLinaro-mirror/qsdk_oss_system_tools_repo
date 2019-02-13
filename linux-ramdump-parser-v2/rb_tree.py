@@ -31,7 +31,7 @@ class RbTreeWalker(object):
             'struct rb_node', 'rb_left')
 
     def _walk(self, node, func, seen, extra):
-        if node != 0:
+        if node is not None and node != 0:
             left_node_addr = node + self.left_offset
             left_node = self.ram_dump.read_word(left_node_addr)
             if left_node not in seen:

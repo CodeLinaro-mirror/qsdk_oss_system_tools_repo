@@ -9,9 +9,14 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
+import sys
+import os
+import re
 import struct
+import string
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
+import linux_list as llist
 
 # (name from tz dump, corresponding T32 register, whether or not to print_out_str (the function name))
 tzbsp_register_names = [
@@ -133,11 +138,24 @@ class TZCpuCtx():
     def print_regs(self, outfile, ramdump):
         for reg_name, t32_name, print_pc in tzbsp_register_names:
             if print_pc:
+                modname = None
+                symname = None
+                symtab_st_size = None
+                offset = None
                 a = ramdump.unwind_lookup(self.regs[reg_name])
-                if a is not None:
-                    symname, offset = ramdump.unwind_lookup(
-                        self.regs[reg_name])
-                    pc_string = '[{0}+0x{1:x}]'.format(symname, offset)
+                if a is not None and len(a) > 3:
+                    symname, offset, modname, symtab_st_size = a
+                    if (modname is not None and symtab_st_size is not None):
+                        pc_string = '[{0}+0x{1:x}/0x{3:x}] <{2}.ko>'.format(symname, offset, modname, symtab_st_size)
+                    else:
+                        pc_string = '[{0}+0x{1:x}/0x{2:x}]'.format(symname, offset, symtab_st_size)
+
+                elif a is not None:
+                    symname, offset, modname = a
+                    if (modname is not None):
+                        pc_string = '[{0}+0x{1:x}] <{2}.ko>'.format(symname, offset, modname)
+                    else:
+                        pc_string = '[{0}+0x{1:x}]'.format(symname, offset)
                 else:
                     pc_string = ''
             else:
@@ -223,6 +241,72 @@ class TZRegDump(RamParser):
         self.sec_regs.print_regs(secure_regs, self.ramdump)
         print_out_str('============ end secure context ===========')
         secure_regs.close()
+        self.print_fiq_marker_details()
+
+    def print_fiq_marker_details(self):
+        print_out_str('\n======== entry/exit details of SGI and WDT interrupt ==========')
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 4), False)
+        print_out_str('   Generic FIQ Entry Counter {0}'.format(fiq_marker))
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 8), False)
+        if (fiq_marker == 1):
+            print_out_str('   WDT interrupt occured on Core 0')
+        else:
+            print_out_str('   WDT interrupt not occured on Core 0')
+
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 12), False)
+        if (fiq_marker == 1):
+            print_out_str('   WDT interrupt has occured on Core 0 and coredump is done ')
+        else:
+            print_out_str('   Core0 dump not done')
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 16), False)
+        if (fiq_marker == 1):
+            print_out_str('   SGI is sent from Core 0 to Core 1 and is about to enter SGI FIQ handler ')
+        else:
+            if (self.sc_status[0] & v2tzbsp_sc_status_warm_boot == 0):
+                if(self.sc_status[0] & v2tzbsp_sc_status_wdt):
+                    print_out_str('   Core0 has sent SGI but Core1 has not received it')
+                else:
+                    print_out_str('   Core0 has not sent SGI')
+
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 20), False)
+        if (fiq_marker == 1):
+            print_out_str('   SGI is received by Core 0 and coredump activity is done  ')
+        else:
+            print_out_str('   Core0 dump not done ')
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 24), False)
+        if (fiq_marker == 1):
+            print_out_str('   WDT interrupt occured on Core 1 and is about to enter WDT FIQ handler')
+        else:
+            print_out_str('   WDT interrupt not occured on Core 1')
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 28), False)
+        if (fiq_marker == 1):
+            print_out_str('   WDT interrupt has occured on Core 1 and coredump activity is done')
+        else:
+            print_out_str('   Core1 dump not done')
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 32), False)
+        if (fiq_marker == 1):
+            print_out_str('   SGI is sent from Core 1 to Core 0 and is about to enter SGI FIQ')
+        else:
+            if (self.sc_status[1] & v2tzbsp_sc_status_warm_boot == 0):
+                if(self.sc_status[1] & v2tzbsp_sc_status_wdt):
+                    print_out_str('   Core1 has sent SGI but Core0 has not received it')
+                else:
+                    print_out_str('   Core1 has not sent SGI')
+
+
+        fiq_marker = self.ramdump.read_word((self.ramdump.tz_addr + 36), False)
+        if (fiq_marker == 1):
+            print_out_str('   SGI is received by Core 1 and coredump activity is done ')
+        else:
+            print_out_str('   Core1 dump not done ')
+        print_out_str('\n======== End of entry/exit details of SGI and WDT interrupt ======\n')
 
     def dump_core_pc(self, core):
         if self.version > 1:
@@ -230,26 +314,211 @@ class TZRegDump(RamParser):
         else:
             pc = self.core_regs[core].regs['mon_lr']
         lr = self.core_regs[core].regs['svc_r14']
+        modname = None
+        symname = None
+        symtab_st_size = None
+        offset = None
+
         a = self.ramdump.unwind_lookup(pc)
-        if a is not None:
-            symname, offset = a
+        if a is not None and len(a) > 3:
+            symname, offset, modname, symtab_st_size = a
+        elif a is not None:
+            symname, offset, modname = a
         else:
-            symname = 'UNKNOWN'
             offset = 0
-        print_out_str(
-            'Core {3} PC: {0}+{1:x} <{2:x}>'.format(symname, offset, pc, core))
+
+        if (modname is not None and symtab_st_size is not None):
+            print_out_str(
+                'Core {3} PC: {0}+0x{1:x}/0x{5:x} <0x{2:x}> [{4}.ko]'.format(symname, offset, pc, core, modname, symtab_st_size))
+
+        elif (modname is None and symtab_st_size is not None):
+            fname = self.ramdump.get_file_name_from_addr(pc)
+            if fname is not None:
+                print_out_str(
+                    'Core {3} PC: {0}+0x{1:x}/0x{5:x} <0x{2:x}> [{4}]'.format(symname, offset, pc, core, fname, symtab_st_size))
+            else:
+                print_out_str(
+                    '{3}: [{0}+0x{1:x}/0x{4:x}] <0x{2:x}>'.format(symname, offset, pc, core, symtab_st_size))
+
+        else:
+            print_out_str(
+                  'Core {3} PC: {0}+0x{1:x} <0x{2:x}>'.format(symname, offset, pc, core))
+
+        modname = None
+        symtab_st_size = None
         a = self.ramdump.unwind_lookup(lr)
-        if a is not None:
-            symname, offset = a
+        if a is not None and len(a) > 3:
+            symname, offset, modname, symtab_st_size = a
+        elif a is not None:
+            symname, offset, modname = a
         else:
             symname = 'UNKNOWN'
             offset = 0
-        print_out_str(
-            'Core {3} LR: {0}+{1:x} <{2:x}>'.format(symname, offset, lr, core))
+        if (modname is not None and symtab_st_size is not None):
+            print_out_str(
+                'Core {3} LR: {0}+0x{1:x}/0x{5:x} <0x{2:x}> [{4}.ko]'.format(symname, offset, lr, core, modname, symtab_st_size))
+        elif (modname is None and symtab_st_size is not None):
+            fname = self.ramdump.get_file_name_from_addr(lr)
+            if fname is not None:
+                print_out_str(
+                    'Core {3} LR: {0}+0x{1:x}/0x{5:x} <0x{2:x}> [{4}]'.format(symname, offset, lr, core, fname, symtab_st_size))
+            else:
+                print_out_str(
+                    '{3}: [{0}+0x{1:x}/0x{4:x}]  <0x{2:x}>'.format(symname, offset, lr, core, symtab_st_size))
+
+        else:
+            print_out_str(
+                'Core {3} LR: {0}+0x{1:x} <0x{2:x}>'.format(symname, offset, lr, core))
+
         print_out_str('')
         self.ramdump.unwind.unwind_backtrace(
             self.core_regs[core].regs['svc_r13'], 0, pc, lr, '')
         print_out_str('')
+
+    def host_order(self, s):
+        r = s[6]+s[7]+s[4]+s[5]+s[2]+s[3]+s[0]+s[1]
+        return r
+
+
+    def parse_reg(self, j, buf, reg_name):
+        b = 0xb0000000
+        c = 0xc0000000
+        d = 0xd0000000
+        reg_val  = buf[j:].encode('hex')
+        reg_addr = self.host_order(reg_val[0:8])
+        reg_add_hex_str = '0x{0}'.format(reg_addr)
+        reg_add_hex = int(reg_add_hex_str, 16)
+        if not ((reg_add_hex & b) == b or (reg_add_hex & c) == c or ( reg_add_hex & d) == d):
+            print_out_str("    {0} = 0x{1:x}".format(reg_name,reg_add_hex))
+            return
+
+        modname = None
+        offset = None
+        symtab_st_size = None
+        symname = None
+        a = self.ramdump.unwind_lookup(reg_add_hex)
+        if a is not None and len(a) > 3:
+            symname, offset, modname, symtab_st_size = a
+        elif a is not None:
+            symname, offset, modname = a
+        else:
+            symname = 'UNKNOWN'
+            offset = 0
+
+        if (modname is not None and symtab_st_size is not None):
+            print_out_str(
+                '    {4} =  0x{2:x}  [{0}+0x{1:x}/0x{5:x}] [{3}.ko]'.format(symname, offset, reg_add_hex, modname, reg_name, symtab_st_size))
+        elif (modname is None and symtab_st_size is not None):
+            fname = self.ramdump.get_file_name_from_addr(reg_add_hex)
+            if fname is not None:
+                print_out_str(
+                    '    {4} = 0x{2:x} [{0}+0x{1:x}/0x{5:x}] [{3}]'.format(symname, offset, reg_add_hex, fname, reg_name, symtab_st_size))
+            else:
+               print_out_str(
+                   '    {3} = 0x{2:x} [{0}+0x{1:x}/0x{4:x}]'.format(symname, offset, reg_add_hex, reg_name, symtab_st_size))
+        else:
+           print_out_str(
+                   '    {3} = 0x{2:x} [{0}+0x{1:x}]'.format(symname, offset, reg_add_hex, reg_name))
+
+    def svc_regs(self, buf):
+        svc_str = "SVC: R1-R14"
+        try:
+                svc_ind = buf.index(svc_str)
+
+        except:
+                print_out_str('SVC Mode registers not found')
+                return
+        j = svc_ind + len(svc_str) + 5
+        reg_hex = buf[j:].encode('hex')
+
+        for i in range(1, 14):
+                reg_val  = buf[j:].encode('hex')
+                print_out_str("    SVC_R{0} = 0x{1}".format(i, self.host_order(reg_val[0:8])))
+                j = j + 4
+
+        self.parse_reg(j, buf, 'SVC_R14')
+        return True
+
+    def sys_regs(self, buf):
+        sys_str = "SYS:R13-R14"
+        try:
+                sys_ind = buf.index(sys_str)
+
+        except:
+                print_out_str('SYS Mode registers not found')
+                return
+        j = sys_ind + len(sys_str) + 1
+        print_out_str('\n')
+        reg_val  = buf[j:].encode('hex')
+        print_out_str("    SYS_R13 = 0x{0}".format(self.host_order(reg_val[0:8])))
+        self.parse_reg(j+4, buf, 'SYS_R14')
+        return True
+
+    def irq_regs(self, buf):
+        irq_str = "IRQ:R13-R14"
+        try:
+                irq_ind = buf.index(irq_str)
+
+        except:
+                print_out_str('IRQ Mode registers not found')
+                return
+        j = irq_ind + len(irq_str) + 1
+        print_out_str('\n')
+        reg_val  = buf[j:].encode('hex')
+        print_out_str("    IRQ_R13 = 0x{0}".format(self.host_order(reg_val[0:8])))
+        self.parse_reg(j+4, buf, 'IRQ_R14')
+        return True
+
+    def abt_regs(self, buf):
+        abt_str = "ABT:R13-R14"
+        try:
+                abt_ind = buf.index(abt_str)
+
+        except:
+                print_out_str('ABT Mode registers not found')
+                return
+        j = abt_ind + len(abt_str) + 1
+        print_out_str('\n')
+        reg_val  = buf[j:].encode('hex')
+        print_out_str("    ABT_R13 = 0x{0}".format(self.host_order(reg_val[0:8])))
+        self.parse_reg(j+4, buf, 'ABT_R14')
+        return True
+
+    def und_regs(self, buf):
+        und_str = "UND:R13-R14"
+        try:
+                und_ind = buf.index(und_str)
+
+        except:
+                print_out_str('UND Mode registers not found')
+                return
+        j = und_ind + len(und_str) + 1
+        print_out_str('\n')
+        reg_val  = buf[j:].encode('hex')
+        print_out_str("    UND_R13 = 0x{0}".format(self.host_order(reg_val[0:8])))
+        self.parse_reg(j+4, buf, 'UND_R14')
+        return True
+
+    def dump_cpu_regs(self, cpu_reg_path, cpu_number):
+        if cpu_reg_path is not None:
+            if os.path.exists(cpu_reg_path):
+                fh = open(cpu_reg_path, 'rb')
+            else:
+                return
+        else:
+            return
+        buf = fh.read(172)
+        print_out_str(" --begin CORE{0}_REGS from SBL--".format(cpu_number))
+        self.svc_regs(buf)
+       # self.sys_regs(buf)
+        self.irq_regs(buf)
+        self.abt_regs(buf)
+        self.und_regs(buf)
+        print_out_str(" --end CORE{0}_REGS from SBL--".format(cpu_number))
+        print_out_str("\n")
+        fh.close()
+
+        return True
 
     def init_regs(self, ebi_addr):
         cpu_count = 0
@@ -305,15 +574,31 @@ class TZRegDump(RamParser):
         self.version = version
         return True
 
-    def parse(self):
-        ebi_addr = self.ramdump.read_tz_offset()
+    def print_wdog_pet_details(self):
+        if re.search('3.4.\d', self.ramdump.version) is not None:
+            last_pet_addr = self.ramdump.addr_lookup('last_pet')
+            if last_pet_addr is not None:
+                last_pet = self.ramdump.read_dword(last_pet_addr)
+                print_out_str('Most recent time that the watchdog was pet (last pet) : {0}.{1:6}'
+                                            .format(last_pet / 1000000000, last_pet % 1000000000))
 
+        jiffies_addr = self.ramdump.addr_lookup('jiffies')
+        jiffies = self.ramdump.read_word(jiffies_addr)
+        print_out_str('System up time (jiffies) : {0}.{1:2}\n'.format((jiffies / 100)+300,
+                                    jiffies % 100))
+
+    def parse(self):
+        self.print_wdog_pet_details()
+        ebi_addr = self.ramdump.read_tz_offset()
         if ebi_addr is None:
             print_out_str(
                 '!!! Could not read from IMEM at address {0:x}'.format(self.ramdump.tz_addr))
             return None
 
         if (ebi_addr == 0):
+            self.dump_cpu_regs(self.ramdump.cpu0_reg_path, 0)
+            self.dump_cpu_regs(self.ramdump.cpu1_reg_path, 1)
+
             print_out_str(
                 '!!! No EBI address at IMEM location {0:x}.'.format(self.ramdump.tz_addr))
             print_out_str('!!! No FIQ occured on this system')
@@ -321,6 +606,8 @@ class TZRegDump(RamParser):
 
         print_out_str(
             '[!!!!] Read {0:x} from IMEM successfully!'.format(ebi_addr))
+        if self.ramdump.Is_Hawkeye():
+            return
         print_out_str('[!!!!] An FIQ occured on the system!')
 
         # The debug image will be responsible for printing out the register
@@ -341,6 +628,7 @@ class TZRegDump(RamParser):
 
 
 def get_wdog_timing(ramdump):
+    print_out_str('!!!!!!!!!!!! Calling from get_wdog_timing')
     jiffies_addr = ramdump.addr_lookup('jiffies')
     last_ns_addr = ramdump.addr_lookup('last_ns')
     last_pet_addr = ramdump.addr_lookup('last_pet')

@@ -179,10 +179,12 @@ class DDRCompare(RamParser) :
             self.output_file.write("----------------------------------------\n")
 
     def parse(self):
-        self.output_file = self.ramdump.open_file('DDRCacheCompare.txt')
+        #self.output_file = self.ramdump.open_file('DDRCacheCompare.txt')
 
-        self.compare_magic()
-        self.corruptionchecker()
+        #self.compare_magic()
+        #self.corruptionchecker()
 
-        self.output_file.close()
-        print_out_str("--- Wrote the output to DDRCacheCompare.txt")
+        #self.output_file.close()
+        #print_out_str("--- Wrote the output to DDRCacheCompare.txt")
+        print_out_str("--- DDRCacheCompare disabled")
+        return
