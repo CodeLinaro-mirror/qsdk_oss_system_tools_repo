@@ -11,6 +11,7 @@
 
 from parser_util import register_parser, RamParser
 from print_out import print_out_str
+import sys
 
 @register_parser('--cpr-reg', 'Print the cpr register info')
 
@@ -24,7 +25,9 @@ class CPR(RamParser):
 
         dump_offset = 0x8600658
         regs = CPRRegDump()
-        regs.init_cpr_regs(self.ramdump, dump_offset)
+        init_state = regs.init_cpr_regs(self.ramdump, dump_offset)
+        if not init_state:
+            sys.exit()
         self.dump_cpr_regs(regs, cpr_out)
 
         cpr_out.close()
@@ -67,8 +70,12 @@ class CPRRegDump():
         next_reg_offset = 0x8
         curr_addr = regs_start_addr
         for i in xrange(self.count):
+            addr_validity = ramdump.check_addr_validity(curr_addr + reg_offset, ramdump.ebi_files)
+            if not addr_validity:
+                return 0
             reg_val = ramdump.read_u32(curr_addr + reg_offset, False)
             value = ramdump.read_u32(curr_addr + value_offset, False)
             reg = [reg_val, value]
             self.cpr_regs.append(reg)
             curr_addr = curr_addr + next_reg_offset
+        return 1

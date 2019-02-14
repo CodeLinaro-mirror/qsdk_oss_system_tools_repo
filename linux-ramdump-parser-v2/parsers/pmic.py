@@ -11,6 +11,7 @@
 
 from parser_util import register_parser, RamParser
 from print_out import print_out_str
+import sys
 
 @register_parser('--pmic-reg', 'Print the pmic register info')
 
@@ -24,7 +25,9 @@ class PMIC(RamParser):
 
         dump_offset = 0x8600658
         regs = PMICRegDump()
-        regs.init_pmic_regs(self.ramdump, dump_offset)
+        init_state = regs.init_pmic_regs(self.ramdump, dump_offset)
+        if not init_state:
+            sys.exit()
         self.dump_pmic_regs(regs, pmic_out)
 
         pmic_out.close()
@@ -74,6 +77,9 @@ class PMICRegDump():
         next_reg_offset = 0xc
         curr_addr = regs_start_addr
         for i in xrange(self.count):
+            addr_validity = ramdump.check_addr_validity(curr_addr + reg_offset, ramdump.ebi_files)
+            if not addr_validity:
+                return 0
             slaveid = ramdump.read_u32(curr_addr, False)
             reg_val = ramdump.read_u32(curr_addr + reg_offset, False)
             value = ramdump.read_u32(curr_addr + value_offset, False)
@@ -81,4 +87,5 @@ class PMICRegDump():
             self.pmic_regs.append(reg)
             #print("Index : {0} : {1}".format(i, reg));
             curr_addr = curr_addr + next_reg_offset
+        return 1
 
