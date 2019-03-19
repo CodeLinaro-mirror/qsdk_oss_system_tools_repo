@@ -1751,6 +1751,6 @@ class RamDump():
 
     def check_addr_validity(self, addr, ebi_files):
         for i in range(len(ebi_files) - 1):
-            if not ((hex(addr) >= hex(ebi_files[i][1])) and (hex(addr) <= hex(ebi_files[i][2]))):
-                return 0
-        return 1
+            if ((hex(addr) >= hex(ebi_files[i][1])) and (hex(addr) <= hex(ebi_files[i][2]))):
+                return 1
+        return 0
