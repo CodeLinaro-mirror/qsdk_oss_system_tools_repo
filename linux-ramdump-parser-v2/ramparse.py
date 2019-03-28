@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import sys
 import os
+import os.path as path
 import re
 import time
 from optparse import OptionParser
@@ -136,6 +137,8 @@ if __name__ == '__main__':
                       help='readelf path')
     parser.add_option('', '--custom', dest='custom',
                       help='custom specific issue')
+    parser.add_option('', '--dump_dts', action='store_true',
+                      dest='dump_dts', help='Dump the Device Tree Blob and Source', default=False)
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -319,6 +322,23 @@ if __name__ == '__main__':
         print_out_str('!!! The vmlinux is probably wrong for the ramdumps')
         print_out_str('!!! Exiting now...')
         sys.exit(1)
+
+    if options.dump_dts:
+        dtb = dump.get_dtb()
+        if dtb == None:
+            print("Cannot locate dtb. Exiting now...")
+            print_out_str('Cannot locate dtb ... Exiting now ...')
+            sys.exit(1)
+        else:
+            dtb_file_path = path.join(options.outdir, "devicetree.dtb")
+            dts_file_path = path.join(options.outdir, "devicetree.dts")
+            dtb_file = open(dtb_file_path, "w")
+            dtb_file.write(dtb)
+            dtb_file.close()
+            ret = os.system("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
+            if ret != 0:
+                print("dtc failed with error: " + str(ret) + ". Install dtc and run ")
+                print("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')

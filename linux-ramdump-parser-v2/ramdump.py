@@ -905,6 +905,28 @@ class RamDump():
             print_out_str('!!! Could not lookup saved command line address')
             return False
 
+    def get_dtb(self):
+        command_addr = self.addr_lookup('initial_boot_params')
+        if command_addr is not None:
+            command_addr = self.read_word(command_addr)
+            signature = self.read_int(command_addr)
+            # signature is 0xd00dfeed in big endian format
+            if signature != 0xedfe0dd0:
+                print_out_str('dtb signature is invalid')
+                return False
+
+            length = self.read_byte(command_addr + 4)
+            length = length * 256 + self.read_byte(command_addr + 5)
+            length = length * 256 + self.read_byte(command_addr + 6)
+            length = length * 256 + self.read_byte(command_addr + 7)
+            # length does not include the dtb header 'd00dfeed'
+            blob = self.read_physical(self.virt_to_phys(command_addr), length + 4, True)
+            return blob
+        else:
+            print_out_str('!!! Cannot read dtb start address')
+
+        return None
+
     def auto_parse(self, file_path):
         first_mem_path = None
 
