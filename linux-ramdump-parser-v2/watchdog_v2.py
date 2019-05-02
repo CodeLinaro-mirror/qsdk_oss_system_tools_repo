@@ -546,9 +546,10 @@ class TZCpuCtx_v2():
         self.version = version
         register_name = sysdbg_cpu64_register_names[self.version]
 
-        for r in regs_t:
-            self.regs[register_name[i][0]] = r
-            i += 1
+        if regs_t is not None:
+            for r in regs_t:
+                self.regs[register_name[i][0]] = r
+                i += 1
 
     def print_regs(self, outfile, ramdump):
         register_names = sysdbg_cpu64_register_names[self.version]
@@ -578,6 +579,7 @@ class TZCpuCtx_v2():
 class TZRegDump_v2():
     def __init__(self):
         self.core_regs = []
+        self.core_up = []
         self.sec_regs = None
         self.version = 0
         self.start_addr = 0
@@ -588,13 +590,17 @@ class TZRegDump_v2():
 
     def dump_all_regs(self, ram_dump):
         for i in range(0, self.ncores):
+            if (self.core_up[i] != 1):
+                continue
+
             coren_regs = ram_dump.open_file('core{0}_regs.cmm'.format(i))
 
             print_out_str('core{0} regs:'.format(i))
             self.core_regs[i].print_regs(coren_regs, ram_dump)
             coren_regs.close()
 
-        self.print_fiq_marker_details()
+        if (ram_dump.hw_id == 8064):
+            self.print_fiq_marker_details()
 
     def print_fiq_marker_details(self):
         print_out_str('\n======== entry/exit details of SGI and WDT interrupt ==========')
@@ -663,6 +669,9 @@ class TZRegDump_v2():
 
     def dump_core_pc(self, ram_dump):
         for i in range(0, self.ncores):
+            if (self.core_up[i] !=1):
+                continue
+
             pc = self.core_regs[i].regs['pc']
             lr = self.core_regs[i].regs['r14_svc']
             bt = self.core_regs[i].regs['r13_svc']
@@ -751,11 +760,18 @@ class TZRegDump_v2():
             self.version = 'default'
         for i in range(0, 4):
             if(self.version == "12"):
+                reg_ctx = []
                 cpu_cntxt_start = self.ramdump.read_dword(self.new_start_addr + start_addr_offset, False)
                 cpu_cntxt_start += 16
-                self.sc_regs.append(ram_dump.read_string(
-                  cpu_cntxt_start, sysdbg_cpu64_ctxt_regs_type[self.version], False))
-                self.core_regs.append(TZCpuCtx_v2(self.version, self.sc_regs[i], ram_dump))
+                reg_ctx = ram_dump.read_string(cpu_cntxt_start, sysdbg_cpu64_ctxt_regs_type[self.version], False)
+                if reg_ctx is not None:
+                    self.sc_regs.append(reg_ctx)
+                    self.core_regs.append(TZCpuCtx_v2(self.version, self.sc_regs[i], ram_dump))
+                    self.core_up.append(1)
+                else:
+                    print_out_str('Core {0} registers not available, may be core is down'.format(i))
+                    self.core_up.append(0)
+
                 self.new_start_addr += struct_size
             else:
                 self.start_addr += 16
