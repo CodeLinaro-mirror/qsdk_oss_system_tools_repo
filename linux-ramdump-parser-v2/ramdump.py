@@ -920,7 +920,7 @@ class RamDump():
             length = length * 256 + self.read_byte(command_addr + 6)
             length = length * 256 + self.read_byte(command_addr + 7)
             # length does not include the dtb header 'd00dfeed'
-            blob = self.read_physical(self.virt_to_phys(command_addr), length + 4, True)
+            blob = self.read_physical(self.virt_to_phys(command_addr), length + 4, False)
             return blob
         else:
             print_out_str('!!! Cannot read dtb start address')
