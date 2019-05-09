@@ -324,6 +324,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if options.dump_dts:
+        print_out_str('\n--------- begin dtb extraction ---------')
         dtb = dump.get_dtb()
         if dtb == None:
             print("Cannot locate dtb. Exiting now...")
@@ -332,13 +333,17 @@ if __name__ == '__main__':
         else:
             dtb_file_path = path.join(options.outdir, "devicetree.dtb")
             dts_file_path = path.join(options.outdir, "devicetree.dts")
-            dtb_file = open(dtb_file_path, "w")
-            dtb_file.write(dtb)
-            dtb_file.close()
+            try:
+                with open(dtb_file_path, "w") as dtb_file:
+                    dtb_file.write(dtb)
+            except:
+                print_out_str('!!! Error writing dtb to file')
+
             ret = os.system("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
             if ret != 0:
                 print("dtc failed with error: " + str(ret) + ". Install dtc and run ")
                 print("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
+        print_out_str('\n--------- end dtb extraction ---------')
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
