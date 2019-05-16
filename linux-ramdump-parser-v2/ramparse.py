@@ -345,6 +345,12 @@ if __name__ == '__main__':
                 print("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
         print_out_str('\n--------- end dtb extraction ---------')
 
+    print_out_str('\n--------- begin q6_etr extraction ---------')
+    etr = dump.get_q6_etr()
+    if etr is None:
+	    print_out_str("!!! etr dump not available")
+    print_out_str('--------- end q6_etr extraction ---------')
+
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
         print_out_str(

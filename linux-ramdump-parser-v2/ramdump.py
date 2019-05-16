@@ -905,6 +905,109 @@ class RamDump():
             print_out_str('!!! Could not lookup saved command line address')
             return False
 
+    # From the provided device-tree node, will return the values in 'reg' field
+    # as a list of strings or as tuples depending on number of groups present
+    def dts_lookup(self, node):
+        reg = None
+        regex=r'0[xX][0-9a-fA-F]+'
+        dts_file_path = os.path.join(self.outdir, "devicetree.dts")
+        try:
+            lookup = False
+            with open(dts_file_path, "r") as dts_file:
+                for lnum, line in enumerate(dts_file, 1):
+                    if node in line:
+                        lookup = True
+                    if lookup:
+                        if '};' in line:
+                            lookup = False
+                        if 'reg' in line:
+                            reg = re.findall(regex, line)
+                            lookup = False
+            return reg
+        except:
+            print_out_str("\n!!! Cannot get '{0}' from device tree at {1}".format(node, dts_file_path))
+        return None
+
+    def get_q6_etr(self):
+        fd = None
+        wcnss_reg = self.dts_lookup("wcnss@4b000000")
+        etr_reg = self.dts_lookup("q6_etr_dump")
+
+        if etr_reg is not None:
+            etr_addr = int(etr_reg[1], 16)
+            etr_size = int(etr_reg[3], 16)
+        else:
+            print_out_str("!!! q6_etr_dump region is not specified in the dtb, exiting dump")
+            return None
+
+        dump_path =  os.path.split(self.ebi_files[0][3])[0]
+        q6mem_file_path = os.path.join(dump_path, 'q6mem')
+
+        if os.path.isfile(q6mem_file_path) is True and wcnss_reg is not None:
+            wcnss_addr = int(wcnss_reg[1], 16)
+            wcnss_size = int(wcnss_reg[3], 16)
+            start = wcnss_addr
+            offset = etr_addr - wcnss_addr
+            try:
+                fd = open(q6mem_file_path, 'rb')
+                fd.seek(offset)
+                dump = fd.read(etr_size)
+                head_pos = dump.find(b'\xef\xbe\xad\xde')
+            except:
+                fd.close()
+                print_out_str("!!! File {0} cannot be opened".format(q6mem_file_path))
+                return None
+
+        if os.path.isfile(q6mem_file_path) is False or head_pos < 0:
+            for a in self.ebi_files:
+                f, start, end, path = a
+                # Check if the required etr buffer is within the dump range
+                if etr_addr >= start and etr_addr + etr_size <= end:
+                    fd = f
+                    offset = etr_addr - start
+                    break
+
+        end = etr_addr + etr_size
+
+        if fd is None:
+            print_out_str("\n!!! etr dump is not found in system dump")
+            return None
+
+        try:
+            fd.seek(offset)
+            dump = fd.read(etr_size)
+            #Look for dump Magic, 0xdeadbeef in Little Endian
+	    head_pos = dump.find(b'\xef\xbe\xad\xde')
+            if head_pos < 0:
+                print_out_str("-- Magic '0xdeadbeef' is not found in range")
+                return None
+
+	    fd.seek(head_pos + offset)
+            magic, status, read_ptr, write_ptr = struct.unpack("<IIII", fd.read(16))
+
+            etr_file_path = os.path.join(self.outdir, "q6_etr.bin")
+            try:
+                #Write etr dump to a file
+                with open(etr_file_path, 'ab') as etr_file:
+                    etr_file.truncate(0)
+                    if read_ptr == write_ptr and status & 0x10000 == 1:
+                        print_out_str("-- etr buffer is empty")
+                    elif read_ptr < write_ptr:
+                        fd.seek(read_ptr - start)
+                        etr_file.write(fd.read(write_ptr - read_ptr))
+                    elif read_ptr > write_ptr or (read_ptr == write_ptr and status & 0x1 == 1):
+                        fd.seek(read_ptr - start)
+                        etr_file.write(fd.read(end - read_ptr))
+                        fd.seek(offset)
+                        etr_file.write(fd.read(write_ptr - etr_addr))
+                return True
+            except:
+                print_out_str("!!! Cannot write etr dump to output file")
+                return None
+        except:
+            print_out_str("!!! File operation failed....")
+        return None
+
     def get_dtb(self):
         command_addr = self.addr_lookup('initial_boot_params')
         if command_addr is not None:
