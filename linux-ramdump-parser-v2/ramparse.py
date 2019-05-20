@@ -139,6 +139,8 @@ if __name__ == '__main__':
                       help='custom specific issue')
     parser.add_option('', '--dump_dts', action='store_true',
                       dest='dump_dts', help='Dump the Device Tree Blob and Source', default=False)
+    parser.add_option('', '--dump_q6_etr', action='store_true',
+                      dest='dump_q6_etr', help='Extract the Q6 ETR dump into a new binary file q6_etr.bin', default=False)
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -345,11 +347,12 @@ if __name__ == '__main__':
                 print("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
         print_out_str('\n--------- end dtb extraction ---------')
 
-    print_out_str('\n--------- begin q6_etr extraction ---------')
-    etr = dump.get_q6_etr()
-    if etr is None:
-	    print_out_str("!!! etr dump not available")
-    print_out_str('--------- end q6_etr extraction ---------')
+    if options.dump_dts and options.dump_q6_etr:
+        print_out_str('\n--------- begin q6_etr extraction ---------')
+        etr = dump.get_q6_etr()
+        if etr is None:
+            print_out_str("!!! etr dump not available")
+        print_out_str('--------- end q6_etr extraction ---------')
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
