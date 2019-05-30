@@ -336,7 +336,7 @@ if __name__ == '__main__':
             dtb_file_path = path.join(options.outdir, "devicetree.dtb")
             dts_file_path = path.join(options.outdir, "devicetree.dts")
             try:
-                with open(dtb_file_path, "w") as dtb_file:
+                with open(dtb_file_path, "wb") as dtb_file:
                     dtb_file.write(dtb)
             except:
                 print_out_str('!!! Error writing dtb to file')
