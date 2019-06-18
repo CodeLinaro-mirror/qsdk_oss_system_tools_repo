@@ -27,7 +27,8 @@ class CPR(RamParser):
         regs = CPRRegDump()
         init_state = regs.init_cpr_regs(self.ramdump, dump_offset)
         if not init_state:
-            sys.exit()
+            print_out_str("CPR Registers not found")
+            return
         self.dump_cpr_regs(regs, cpr_out)
 
         cpr_out.close()
@@ -60,6 +61,9 @@ class CPRRegDump():
         crash_dump_addr = ramdump.read_dword(dump_offset, False)
         self.cpr_dump_addr = crash_dump_addr + self.cpr_dump_offset
 
+        addr_validity = ramdump.check_addr_validity(self.cpr_dump_addr, ramdump.ebi_files)
+        if not addr_validity:
+            return 0
         self.version = ramdump.read_u32(self.cpr_dump_addr, False)
         self.start_addr = ramdump.read_u64(self.cpr_dump_addr + 40, False)
         self.count = ramdump.read_u32(self.cpr_dump_addr + 56, False)
