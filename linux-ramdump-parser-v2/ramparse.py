@@ -24,6 +24,7 @@ import os.path as path
 import struct
 import re
 import time
+import subprocess
 from optparse import OptionParser, OptionValueError
 
 import parser_util
@@ -382,8 +383,22 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if options.ram_addr is not None:
+        count = 0
         for a in options.ram_addr:
             if os.path.exists(a[0]):
+                dump_file = a[0]
+                compressed = dump_file.find('.gz')
+                if compressed > 0:
+                    a = (dump_file[:-3], a[1], a[2])
+                    cmd = ["gzip -cdk " + dump_file + ">" + a[0]]
+                    ret = subprocess.call(cmd, shell=True)
+                    if ret != 0:
+                        print_out_str('Error executing gzip')
+                        sys.exit(1)
+
+                    options.ram_addr[count] = (a[0], a[1], a[2])
+                    count = count + 1
+
                 print_out_str(
                     'Loading Ram file {0} from {1:x}--{2:x}'.format(a[0], a[1], a[2]))
             else:
