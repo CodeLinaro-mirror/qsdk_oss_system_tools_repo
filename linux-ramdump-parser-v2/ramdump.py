@@ -1839,7 +1839,16 @@ class RamDump():
     def get_num_cpus(self):
         cpu_present_bits_addr = self.addr_lookup('cpu_present_bits')
         cpu_present_bits = self.read_word(cpu_present_bits_addr)
-        return bin(cpu_present_bits).count('1')
+
+        command_addr = self.addr_lookup('saved_command_line')
+        command_addr = self.read_word(command_addr)
+        b = self.read_cstring(command_addr, 2048)
+        maxcpus = b.find('maxcpus=')
+
+        if maxcpus == -1:
+            return bin(cpu_present_bits).count('1')
+        else:
+            return int((b[maxcpus + 8:].partition(' '))[0])
 
     def iter_cpus(self):
         return xrange(self.get_num_cpus())

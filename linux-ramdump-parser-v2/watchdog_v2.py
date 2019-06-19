@@ -728,7 +728,7 @@ class TZRegDump_v2():
 
         register_names = sysdbg_cpu64_register_names
         self.version = 'default'
-        self.ncores = 4
+        self.ncores = ram_dump.get_num_cpus()
         self.ramdump = ram_dump
 
         ebi_addr = start_addr
@@ -758,7 +758,7 @@ class TZRegDump_v2():
             self.version = "12"
         else:
             self.version = 'default'
-        for i in range(0, 4):
+        for i in range(0, self.ncores):
             if(self.version == "12"):
                 reg_ctx = []
                 cpu_cntxt_start = self.ramdump.read_dword(self.new_start_addr + start_addr_offset, False)

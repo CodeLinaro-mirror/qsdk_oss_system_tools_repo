@@ -199,7 +199,8 @@ class DebugImage(RamParser):
             client_start = 0x87b000e0
             client_end = 0x500
             client_name = "Dump"
-            regs.parse_cpu_ctx(3, client_start, client_end, 1, self.ramdump)
+            numcpus = self.ramdump.get_num_cpus()
+            regs.parse_cpu_ctx(numcpus - 1, client_start, client_end, 1, self.ramdump)
             return
 
         if self.ramdump.Is_Hawkeye():
