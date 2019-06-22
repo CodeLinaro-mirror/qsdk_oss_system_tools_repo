@@ -16,6 +16,7 @@ from optparse import OptionParser
 
 parser = parser = OptionParser()
 parser.add_option('--config',dest='config',help=' CONFIG is set to 32 or 64. Default is 32 bit')
+parser.add_option('--arch',dest='arch',help='arch is set to ipq807x or ipq60xx. Default is ipq807x')
 (options, args) = parser.parse_args()
 
 module_input_file=open("MODULE_INFO.txt")
@@ -28,7 +29,6 @@ wifi_3_0 = None
 def print_mod_info(name,line):
     address = line[line.index('=') + 2 :]
     module_output_file.write("\nd.load.elf "+ name +" /nocode /noclear  /reloc .bss AT 0x" + address)
-
 
 for line in reversed(module_input_file.readlines()):
     if "umac.ko" in line and umac != True:
@@ -63,7 +63,10 @@ if options.config == "64":
     "menu.reprogram c:\\T32\demo\\arm64\kernel\linux\linux-3.x\linux.men",
     "task.dtask",
     "v.v  %ASCII %STRING linux_banner"]
-    vmlinux ="openwrt-ipq-ipq807x_64-vmlinux.elf"
+    if options.arch == "ipq60xx":
+        vmlinux = "openwrt-ipq-ipq60xx_64-vmlinux.elf"
+    else:
+        vmlinux = "openwrt-ipq-ipq807x_64-vmlinux.elf"
 else:
     t32commands = ["r.s M 0x13",
 	"PER.Set.simple SPR:0x30200 %Quad 0x"+PGD,
@@ -75,7 +78,10 @@ else:
 	"menu.reprogram c:\\T32\demo\\arm\kernel\linux\linux-3.x\linux.men",
 	"task.dtask",
 	"v.v  %ASCII %STRING linux_banner"]
-    vmlinux = "openwrt-ipq-ipq807x-vmlinux.elf"
+    if options.arch == "ipq60xx":
+        vmlinux = "openwrt-ipq-ipq60xx-vmlinux.elf"
+    else:
+        vmlinux = "openwrt-ipq-ipq807x-vmlinux.elf"
 
 def file_base_name(file_name):
     if '.' in file_name:
