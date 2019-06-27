@@ -252,9 +252,10 @@ class TZCpuCtx_v3():
         self.version = version
         register_name = sysdbg_cpu64_register_names[self.version]
 
-        for r in regs_t:
-            self.regs[register_name[i][0]] = r
-            i += 1
+        if regs_t is not None:
+            for r in regs_t:
+                self.regs[register_name[i][0]] = r
+                i += 1
 
     def print_regs(self, outfile, ramdump):
         register_names = sysdbg_cpu64_register_names[self.version]
@@ -288,6 +289,7 @@ class TZCpuCtx_v3():
 class TZRegDump_v3():
     def __init__(self):
         self.core_regs = []
+        self.core_up = []
         self.sec_regs = []
         self.version = 0
         self.start_addr = 0
@@ -300,6 +302,9 @@ class TZRegDump_v3():
     def dump_all_regs(self, ram_dump):
         kernel_addr = self.linux_kernel_addr
         for i in range(0, self.ncores):
+            if (self.core_up[i] != 1):
+                continue
+
             sysdbgCPUDumpver = self.ramdump.read_u32(kernel_addr, False)
             sysdbgmagic = self.ramdump.read_u32(kernel_addr + 4, False)
             if(sysdbgCPUDumpver != 0x14 or sysdbgmagic != 0x42445953):
@@ -343,6 +348,9 @@ class TZRegDump_v3():
 
     def dump_core_pc(self, ram_dump):
         for i in range(0, self.ncores):
+            if (self.core_up[i] !=1 ):
+                continue
+
             if ram_dump.arm64 == False or ram_dump.arm64 is None:
                 pc = self.core_regs[i].regs['pc']
                 lr = self.core_regs[i].regs['x18']
@@ -441,19 +449,26 @@ class TZRegDump_v3():
         dump_data_type_addr = self.linux_kernel_addr
 
         for i in range(0, self.ncores):
+            reg_ctx = []
             sysdbgCPUDumpver = self.ramdump.read_u32(dump_data_type_addr, False)
             sysdbgmagic = self.ramdump.read_u32(dump_data_type_addr + 4, False)
             if(sysdbgCPUDumpver == 0x14 and sysdbgmagic == 0x42445953):
                 self.version = 'default'
             else:
                 dump_data_type_addr += self.struct_size
-                continue
+                print_out_str('!!! Core {0} - DumpVer: {1}, dbgMagic: {2} mismatch!!'.format(i, sysdbgCPUDumpver, sysdbgmagic))
             cpu_cntxt_start = self.ramdump.read_dword(dump_data_type_addr + self.start_addr_offset, False)
             #status register offset
             cpu_cntxt_start += 16
             #print (sysdbg_cpu64_register_names[self.version])
-            self.sc_regs.append(ram_dump.read_string(cpu_cntxt_start, sysdbg_cpu64_ctxt_regs_type[self.version], False))
-            self.core_regs.append(TZCpuCtx_v3(self.version, self.sc_regs[i], ram_dump))
+            reg_ctx = ram_dump.read_string(cpu_cntxt_start, sysdbg_cpu64_ctxt_regs_type[self.version], False)
+            if reg_ctx is not None:
+                self.sc_regs.append(reg_ctx)
+                self.core_regs.append(TZCpuCtx_v3(self.version, self.sc_regs[i], ram_dump))
+                self.core_up.append(1)
+            else:
+                print_out_str('Core {0} registers not available, may be core is down'.format(i))
+                self.core_up.append(0)
 
             cpu_cntxt_start += struct.calcsize(sysdbg_cpu64_ctxt_regs_type[self.version])
             self.temp = ram_dump.read_string(cpu_cntxt_start, sysdbg_cpu64_ctxt_regs_type[self.version] , False)
