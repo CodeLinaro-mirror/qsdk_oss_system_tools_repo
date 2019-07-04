@@ -9,6 +9,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
+from array import *
+
 
 def page_buddy(ramdump, page):
     mapcount_offset = ramdump.field_offset('struct page', '_mapcount')
@@ -97,7 +99,7 @@ def section_mem_map_addr(ramdump, section):
 
 
 def pfn_to_section_nr(pfn):
-    return pfn >> (28 - 12)
+    return pfn >> (30 - 12)
 
 
 def pfn_to_section(ramdump, pfn):
@@ -127,13 +129,13 @@ def page_to_pfn_sparse(ramdump, page):
 # entire parser will probably be broken in many other ways so a better solution
 # can be derived then.
 def page_to_pfn_vmemmap(ramdump, page):
-    mem_map = 0xffffffbc00000000
+    mem_map = 0xffffffbdbf000000
     page_size = ramdump.sizeof('struct page')
     return ((page - mem_map) / page_size)
 
 
 def pfn_to_page_vmemmap(ramdump, pfn):
-    mem_map = 0xffffffbc00000000
+    mem_map = 0xffffffbdbf000000
     page_size = ramdump.sizeof('struct page')
     pfn_offset = ramdump.phys_offset >> 12
     return mem_map + (pfn * page_size)
@@ -241,3 +243,69 @@ def page_address(ramdump, page):
         pam = ramdump.read_word(pam + lh_offset)
         if pam == start:
             return None
+
+
+class mm_page_ext:
+    def __init__(self, ramdump):
+        self.ramdump = ramdump
+        self.page_ext_size = ramdump.sizeof('struct page_ext')
+        self.contig_page_data = ramdump.addr_lookup('contig_page_data')
+        self.node_start_pfn_offset = ramdump.field_offset(
+                                         'struct pglist_data', 'node_start_pfn')
+        self.node_start_pfn = ramdump.read_word(self.contig_page_data +
+                                  self.node_start_pfn_offset)
+
+        if ramdump.arm64:
+            self.page_ext_offset = ramdump.field_offset('struct mem_section',
+                                                        'page_ext')
+
+            mem_section_addr = ramdump.addr_lookup('mem_section')
+            mem_section = ramdump.read_word(mem_section_addr)
+
+            self.memsection_struct_size = ramdump.sizeof('struct mem_section')
+            self.sections_per_root = 4096 / self.memsection_struct_size
+
+            min_pfn = self.get_min_pfn()
+            min_sec_nr = pfn_to_section_nr(min_pfn)
+            min_sec_nr_root = min_sec_nr / self.sections_per_root
+            min_mask = min_sec_nr & (self.sections_per_root - 1)
+
+            max_pfn = self.get_max_pfn()
+            max_sec_nr = pfn_to_section_nr(max_pfn)
+            max_sec_nr_root = max_sec_nr / self.sections_per_root
+            max_mask = max_sec_nr & (self.sections_per_root - 1)
+
+            self.page_ext = []
+            for s in range(min_sec_nr_root, max_sec_nr_root + 1):
+                page_exts = [0] * (max_mask + 1)
+                for m in range(min_mask, max_mask + 1):
+                    section = mem_section + (self.memsection_struct_size
+                                            * (s * self.sections_per_root + m))
+                    page_exts[m] = self.ramdump.read_word(section +
+                                     self.page_ext_offset)
+                self.page_ext.insert(s, page_exts)
+        else:
+            self.page_ext_offset = ramdump.field_offset('struct pglist_data',
+                                                        'node_page_ext')
+            self.page_ext = ramdump.read_word(self.contig_page_data +
+                                              self.page_ext_offset)
+
+
+    def lookup_page_ext(self, pfn):
+        if self.ramdump.arm64:
+            sec_nr_root = pfn_to_section_nr(pfn) / self.sections_per_root
+            sec_mask = pfn_to_section_nr(pfn) & (self.sections_per_root - 1)
+            return self.page_ext[sec_nr_root][sec_mask] + pfn * self.page_ext_size
+        else:
+            offset = pfn - self.node_start_pfn
+            return self.page_ext + offset * self.page_ext_size
+
+
+    def get_min_pfn(self):
+        return self.node_start_pfn
+
+
+    def get_max_pfn(self):
+        max_pfn_addr = self.ramdump.addr_lookup('max_pfn')
+        max_pfn = self.ramdump.read_word(max_pfn_addr)
+        return max_pfn
