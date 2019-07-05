@@ -659,6 +659,7 @@ class RamDump():
                 '[!!!] Phys offset was set to {0:x}'.format(phys_offset))
             self.phys_offset = phys_offset
         self.lookup_table = []
+        self.stackinfo_cache = {}
         self.config = []
         if self.arm64:
             self.page_offset = 0xffffffc000000000
@@ -1480,6 +1481,19 @@ class RamDump():
             pass
 
     def unwind_lookup(self, addr, symbol_size=1, check_modules=1):
+        if self.stackinfo_cache.has_key(addr):
+            stackinfo = self.stackinfo_cache[addr]
+            if symbol_size == 0 and stackinfo is not None:
+                return (stackinfo[0], stackinfo[1], stackinfo[2])
+            return stackinfo
+
+        stackinfo = self.__unwind_lookup(addr, check_modules)
+        self.stackinfo_cache[addr] = stackinfo
+        if symbol_size == 0 and stackinfo is not None:
+            return (stackinfo[0], stackinfo[1], stackinfo[2])
+        return stackinfo
+
+    def __unwind_lookup(self, addr, check_modules=1):
         if (addr is None):
             return ('(Invalid address)', 0x0, None)
 
@@ -1522,10 +1536,7 @@ class RamDump():
 
             premid = mid
 
-        if symbol_size == 0:
-            return (self.lookup_table[mid][1], addr - self.lookup_table[mid][0], None)
-        else:
-            return (self.lookup_table[mid][1], addr - self.lookup_table[mid][0], None, self.lookup_table[mid][2])
+        return (self.lookup_table[mid][1], addr - self.lookup_table[mid][0], None, self.lookup_table[mid][2])
 
     def read_physical(self, addr, length, trace=False):
         ebi = (-1, -1, -1)
