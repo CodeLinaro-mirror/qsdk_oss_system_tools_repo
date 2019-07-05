@@ -891,15 +891,21 @@ class RamDump():
             print_out_str('!!! Could not lookup banner address')
             return False
 
-    def print_command_line(self):
+    def get_command_line(self):
         command_addr = self.addr_lookup('saved_command_line')
         if command_addr is not None:
             command_addr = self.read_word(command_addr)
-            b = self.read_cstring(command_addr, 2048)
-            if b is None:
+            cmdline = self.read_cstring(command_addr, 2048)
+            if cmdline is None:
                 print_out_str('!!! could not read saved command line address')
-                return False
-            print_out_str('Command Line: ' + b)
+                return ""
+            else:
+                return cmdline
+
+    def print_command_line(self):
+        cmdline = self.get_command_line()
+        if cmdline is not None:
+            print_out_str('Command Line: ' + cmdline)
             return True
         else:
             print_out_str('!!! Could not lookup saved command line address')
@@ -1840,9 +1846,7 @@ class RamDump():
         cpu_present_bits_addr = self.addr_lookup('cpu_present_bits')
         cpu_present_bits = self.read_word(cpu_present_bits_addr)
 
-        command_addr = self.addr_lookup('saved_command_line')
-        command_addr = self.read_word(command_addr)
-        b = self.read_cstring(command_addr, 2048)
+        b = self.get_command_line()
         maxcpus = b.find('maxcpus=')
 
         if maxcpus == -1:
