@@ -661,6 +661,7 @@ class RamDump():
         self.lookup_table = []
         self.stackinfo_cache = {}
         self.config = []
+        self.CONFIG_SPARSEMEM = False
         if self.arm64:
             self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
@@ -819,6 +820,10 @@ class RamDump():
         os.remove(zconfig.name)
         for l in t:
             self.config.append(l.rstrip().decode('ascii', 'ignore'))
+
+        if self.is_config_defined('CONFIG_SPARSEMEM'):
+            self.CONFIG_SPARSEMEM = True
+
         return True
 
     def is_config_defined(self, config):

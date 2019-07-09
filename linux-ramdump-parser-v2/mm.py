@@ -160,7 +160,7 @@ def pfn_to_page_flat(ramdump, pfn):
 def page_to_pfn(ramdump, page):
     if ramdump.arm64:
         return page_to_pfn_vmemmap(ramdump, page)
-    if ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+    if ramdump.CONFIG_SPARSEMEM:
         return page_to_pfn_sparse(ramdump, page)
     else:
         return page_to_pfn_flat(ramdump, page)
@@ -169,7 +169,7 @@ def page_to_pfn(ramdump, page):
 def pfn_to_page(ramdump, pfn):
     if ramdump.arm64:
         return pfn_to_page_vmemmap(ramdump, pfn)
-    if ramdump.is_config_defined('CONFIG_SPARSEMEM'):
+    if ramdump.CONFIG_SPARSEMEM:
         return pfn_to_page_sparse(ramdump, pfn)
     else:
         return pfn_to_page_flat(ramdump, pfn)
@@ -212,7 +212,7 @@ def normal_lowmem_page_address(ramdump, page):
 
 
 def lowmem_page_address(ramdump, page):
-    if ramdump.is_config_defined('CONFIG_SPARSEMEM') and not ramdump.arm64:
+    if ramdump.CONFIG_SPARSEMEM and not ramdump.arm64:
         return sparsemem_lowmem_page_address(ramdump, page)
     elif ramdump.is_config_defined('CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0'):
         return dont_map_hole_lowmem_page_address(ramdump, page)
