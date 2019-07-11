@@ -13,6 +13,7 @@
 import glob
 import os
 from optparse import OptionParser
+import fileinput
 
 parser = parser = OptionParser()
 parser.add_option('--config',dest='config',help=' CONFIG is set to 32 or 64. Default is 32 bit')
@@ -27,24 +28,24 @@ qca_ol = None
 wifi_3_0 = None
 
 def print_mod_info(name,line):
-    address = line[line.index('=') + 2 :]
+    address = line[line.index('=') + 1 : line.index('\0')]
     module_output_file.write("\nd.load.elf "+ name +" /nocode /noclear  /reloc .bss AT 0x" + address)
 
 for line in reversed(module_input_file.readlines()):
-    if "umac.ko" in line and umac != True:
+    if "umac" in line and umac != True:
          name = "umac.ko"
          umac = True
          print_mod_info(name,line)
-    if "qca_ol.ko" in line and qca_ol != True:
+    if "qca_ol" in line and qca_ol != True:
          name = "qca_ol.ko"
          qca_ol = True
          print_mod_info(name,line)
-    if "wifi_3_0.ko" in line and wifi_3_0 != True:
+    if "wifi_3_0" in line and wifi_3_0 != True:
          name = "wifi_3_0.ko"
          wifi_3_0 = True
          print_mod_info(name,line)
     if "PGD" in line:
-        PGD = line[line.index('=') + 2 :]
+        PGD = line[line.index('=') +1:line.index('\0')]
 
 module_input_file.close()
 module_output_file.close()
@@ -109,3 +110,9 @@ for i in range(len(t32commands)):
 
 file.close()
 
+for line in fileinput.input('MODULE_INFO.txt', inplace=True):
+    line = line.strip('\n')
+    line = line.replace('\0',' ')
+    print line
+
+fileinput.close()

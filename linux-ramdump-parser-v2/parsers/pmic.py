@@ -27,7 +27,8 @@ class PMIC(RamParser):
         regs = PMICRegDump()
         init_state = regs.init_pmic_regs(self.ramdump, dump_offset)
         if not init_state:
-            sys.exit()
+            print_out_str("PMIC Registers not found")
+            return
         self.dump_pmic_regs(regs, pmic_out)
 
         pmic_out.close()
@@ -63,6 +64,9 @@ class PMICRegDump():
         crash_dump_addr = ramdump.read_dword(dump_offset, False)
         self.pmic_dump_addr = crash_dump_addr + self.pmic_dump_offset
 
+        addr_validity = ramdump.check_addr_validity(self.pmic_dump_addr, ramdump.ebi_files)
+        if not addr_validity:
+            return 0
         self.version = ramdump.read_u32(self.pmic_dump_addr, False)
         self.magic = ramdump.read_cstring(self.pmic_dump_addr + 4, 4, False)
         self.name = ramdump.read_cstring(self.pmic_dump_addr + 8, 32, False)
