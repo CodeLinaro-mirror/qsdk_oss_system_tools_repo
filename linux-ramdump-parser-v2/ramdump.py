@@ -662,6 +662,10 @@ class RamDump():
         self.stackinfo_cache = {}
         self.config = []
         self.CONFIG_SPARSEMEM = False
+        self.CONFIG_SLUB_DEBUG = False
+        self.CONFIG_SLUB_DEBUG_ON = False
+        self.CONFIG_HIGHMEM = False
+        self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = False
         if self.arm64:
             self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
@@ -823,6 +827,18 @@ class RamDump():
 
         if self.is_config_defined('CONFIG_SPARSEMEM'):
             self.CONFIG_SPARSEMEM = True
+
+        if self.is_config_defined('CONFIG_SLUB_DEBUG'):
+            self.CONFIG_SLUB_DEBUG = True
+
+        if self.is_config_defined('CONFIG_SLUB_DEBUG_ON'):
+            self.CONFIG_SLUB_DEBUG_ON = True
+
+        if self.is_config_defined('CONFIG_HIGHMEM'):
+            self.CONFIG_HIGHMEM = True
+
+        if self.is_config_defined('CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0'):
+            self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = True
 
         return True
 

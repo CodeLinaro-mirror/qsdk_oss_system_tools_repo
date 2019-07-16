@@ -258,7 +258,7 @@ class Slabinfo(RamParser):
             out_file.write(
                     '\n   Object {0:x}-{1:x} ALLOCATED\n'.format(
                                     p, p + slab.size))
-        if self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON'):
+        if self.ramdump.CONFIG_SLUB_DEBUG_ON:
             if g_printfreeobjStack is True:
                 self.print_track(ramdump, slab, p, 0, out_file)
                 self.print_track(ramdump, slab, p, 1, out_file)
@@ -333,7 +333,7 @@ class Slabinfo(RamParser):
                 self.ramdump, slab_obj, slab_node,
                 slab_node_addr + slab_partial_offset,
                 slab_out, map_fn, out_slabs_addrs)
-            if self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG'):
+            if self.ramdump.CONFIG_SLUB_DEBUG:
                 self.print_slab_page_info(
                     self.ramdump, slab_obj, slab_node,
                     slab_node_addr + slab_full_offset,
@@ -359,7 +359,7 @@ class Slabinfo(RamParser):
         slabs_output_summary.close()
 
     def parse(self):
-        if not self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON') or not self.ramdump.is_config_defined('CONFIG_STACKTRACE'):
+        if not self.ramdump.CONFIG_SLUB_DEBUG_ON or not self.ramdump.is_config_defined('CONFIG_STACKTRACE'):
             print_out_str ("either slub_debug_on or stacktrace is not enabled")
             return
         global g_printfreeobjStack
@@ -388,7 +388,7 @@ class Slabpoison(Slabinfo):
     def print_trailer(self, s, page, p, out_file):
         addr = page_address(self.ramdump, page)
 
-        if self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON'):
+        if self.ramdump.CONFIG_SLUB_DEBUG_ON:
             self.print_track(self.ramdump, s.addr, p, 0, out_file)
             self.print_track(self.ramdump, s.addr, p, 1, out_file)
 

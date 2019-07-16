@@ -41,7 +41,7 @@ def page_zone(ramdump, page):
 
 
 def zone_is_highmem(ramdump, zone):
-    if not ramdump.is_config_defined('CONFIG_HIGHMEM'):
+    if not ramdump.CONFIG_HIGHMEM:
         return False
 
     if zone is None:
@@ -214,7 +214,7 @@ def normal_lowmem_page_address(ramdump, page):
 def lowmem_page_address(ramdump, page):
     if ramdump.CONFIG_SPARSEMEM and not ramdump.arm64:
         return sparsemem_lowmem_page_address(ramdump, page)
-    elif ramdump.is_config_defined('CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0'):
+    elif ramdump.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0:
         return dont_map_hole_lowmem_page_address(ramdump, page)
     else:
         return normal_lowmem_page_address(ramdump, page)
