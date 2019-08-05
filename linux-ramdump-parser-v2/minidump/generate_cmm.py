@@ -26,6 +26,7 @@ module_output_file=open("Load_modules.cmm","w")
 umac = None
 qca_ol = None
 wifi_3_0 = None
+qdf = None
 
 def print_mod_info(name,line):
     address = line[line.index('=') + 1 : line.index('\0')]
@@ -43,6 +44,10 @@ for line in reversed(module_input_file.readlines()):
     if "wifi_3_0" in line and wifi_3_0 != True:
          name = "wifi_3_0.ko"
          wifi_3_0 = True
+         print_mod_info(name,line)
+    if "qdf" in line and qdf != True:
+         name = "qdf.ko"
+         qdf = True
          print_mod_info(name,line)
     if "PGD" in line:
         PGD = line[line.index('=') +1:line.index('\0')]
