@@ -21,9 +21,10 @@ from __future__ import print_function
 import sys
 import os
 import os.path as path
+import struct
 import re
 import time
-from optparse import OptionParser
+from optparse import OptionParser, OptionValueError
 
 import parser_util
 from ramdump import RamDump
@@ -64,6 +65,112 @@ if minor != 7 and '--force-26' not in sys.argv:
 if '--force-26' in sys.argv:
     sys.argv.remove('--force-26')
 
+# Supported for 32-bit ELF, Little-Endian format only
+def q6_etr_from_q6mem_elf(fd, etr_addr, etr_size, outdir):
+    e_ident = fd.read(8)
+    e_magic, e_class, e_data, e_version, e_osabi = struct.unpack("<IBBBB", e_ident)
+
+    if e_magic != 0x464c457f and e_class != 1 and e_data != 1:
+        print("!!!ELF magic not matched or format not supported")
+        return None
+
+    # e_phoff - Points to the start of the program header table.
+    fd.seek(0x1C)
+    e_phoff, = struct.unpack("<I", fd.read(4))
+
+    # e_phentsize - Contains the size of a program header table entry.
+    fd.seek(0x2A)
+    e_phentsize, = struct.unpack("<H", fd.read(2))
+
+    # e_phnum - Contains the number of entries in the program header table.
+    fd.seek(0x2C)
+    e_phnum, = struct.unpack("<H", fd.read(2))
+
+    fd.seek(e_phoff)
+    count = 0
+    while count < e_phnum:
+        curr_offset = e_phoff + count * e_phentsize
+
+        # p_offset - Offset of the segment in the file image.
+        fd.seek(curr_offset + 0x04)
+        p_offset, = struct.unpack("<I", fd.read(4))
+
+        # p_paddr - Reserved for segment's physical address.
+        fd.seek(curr_offset + 0x0C)
+        p_paddr, = struct.unpack("<I", fd.read(4))
+
+        # p_filesz - Size in bytes of the segment in the file image.
+        fd.seek(curr_offset + 0x10)
+        p_filesz, = struct.unpack("<I", fd.read(4))
+
+        if p_paddr == etr_addr:
+            break
+        count += 1
+
+    if p_paddr != etr_addr and p_filesz != etr_size:
+        print_out_str('etr region not found in the program header')
+        return None
+
+    offset = p_offset
+    start = p_paddr - offset
+    end = start + p_filesz
+
+    try:
+        fd.seek(offset)
+        dump = fd.read(etr_size)
+        #Look for dump Magic, 0xdeadbeef in Little Endian
+        head_pos = dump.find(b'\xef\xbe\xad\xde')
+        if head_pos < 0:
+            print_out_str("-- Magic '0xdeadbeef' is not found in range")
+            return None
+
+        fd.seek(head_pos + offset)
+        magic, status, read_ptr, write_ptr = struct.unpack("<IIII", fd.read(16))
+
+        etr_file_path = os.path.join(outdir, "q6_etr.bin")
+        try:
+            #Write etr dump to a file
+            with open(etr_file_path, 'ab') as etr_file:
+                etr_file.truncate(0)
+                if read_ptr == write_ptr and status & 0x10000 == 1:
+                    print_out_str("-- etr buffer is empty")
+                elif read_ptr < write_ptr:
+                    fd.seek(read_ptr - start)
+                    etr_file.write(fd.read(write_ptr - read_ptr))
+                elif read_ptr > write_ptr or (read_ptr == write_ptr and status & 0x1 == 1):
+                    fd.seek(read_ptr - start)
+                    etr_file.write(fd.read(end - read_ptr))
+                    fd.seek(offset)
+                    etr_file.write(fd.read(write_ptr - etr_addr))
+            return True
+        except:
+            print_out_str("!!! Cannot write etr dump to output file")
+            return None
+    except:
+        print_out_str("!!! File operation failed..")
+
+    return None
+
+def parse_etr_option(option, opt_str, value, parser):
+    a = getattr(parser.values, option.dest)
+    temp = []
+
+    for arg in parser.rargs:
+        if arg[:2] == '--':
+            break
+        if arg[:1] == '-' and len(arg) > 1:
+            break
+        temp.append(arg)
+
+    if len(temp) is 3:
+	a = []
+	a.append((temp[0], int(temp[1], 16), int(temp[2], 16)))
+	setattr(parser.values, option.dest, a)
+    elif len(temp) is 0:
+	a = "EBICS"
+	setattr(parser.values, option.dest, a)
+    else:
+        raise OptionValueError("--dump_q6_etr option should have either no argument or if specified, in 'path, start, size' format")
 
 def parse_ram_file(option, opt_str, value, parser):
     a = getattr(parser.values, option.dest)
@@ -139,8 +246,9 @@ if __name__ == '__main__':
                       help='custom specific issue')
     parser.add_option('', '--dump_dts', action='store_true',
                       dest='dump_dts', help='Dump the Device Tree Blob and Source', default=False)
-    parser.add_option('', '--dump_q6_etr', action='store_true',
-                      dest='dump_q6_etr', help='Extract the Q6 ETR dump into a new binary file q6_etr.bin', default=False)
+    parser.add_option('', '--dump_q6_etr', action='callback',
+                      dest='dump_q6_etr', help='etr region (path, start, size) to extract etr dump q6_etr.bin',
+                      callback=parse_etr_option, default=False)
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -171,6 +279,20 @@ if __name__ == '__main__':
         set_outfile(options.outdir + '/' + options.outfile)
 
     print_out_str('Linux Ram Dump Parser Version %s' % VERSION)
+
+    if options.dump_q6_etr and options.dump_q6_etr != "EBICS":
+	    fd = None
+	    etr, = options.dump_q6_etr
+	    if os.path.isfile(etr[0]) is True:
+		try:
+		    fd = open(etr[0], 'rb')
+		except:
+		    fd.close()
+                    print_out_str("!!! File {0} cannot be opened".format(q6mem_file_path))
+		    sys.exit(1)
+
+            q6_etr_from_q6mem_elf(fd, etr[1], etr[2], options.outdir)
+	    sys.exit(1)
 
     args = ''
     for arg in sys.argv:
@@ -347,11 +469,18 @@ if __name__ == '__main__':
                 print("dtc -I dtb -O dts -f " + dtb_file_path + " -o " + dts_file_path)
         print_out_str('\n--------- end dtb extraction ---------')
 
-    if options.dump_dts and options.dump_q6_etr:
+    if options.dump_dts and options.dump_q6_etr == "EBICS":
         print_out_str('\n--------- begin q6_etr extraction ---------')
-        etr = dump.get_q6_etr()
-        if etr is None:
-            print_out_str("!!! etr dump not available")
+        etr_reg = dump.dts_lookup("q6_etr_dump")
+        if etr_reg is not None:
+	    etr_addr = int(etr_reg[1], 16)
+	    etr_size = int(etr_reg[3], 16)
+
+            etr = dump.get_q6_etr(etr_addr, etr_size)
+            if etr is None:
+                print_out_str("!!! etr dump not available")
+        else:
+	    print_out_str('!!! etr region not found in device-tree')
         print_out_str('--------- end q6_etr extraction ---------')
 
     if options.qdss:

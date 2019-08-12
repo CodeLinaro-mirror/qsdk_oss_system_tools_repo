@@ -956,44 +956,15 @@ class RamDump():
             print_out_str("\n!!! Cannot get '{0}' from device tree at {1}".format(node, dts_file_path))
         return None
 
-    def get_q6_etr(self):
+    def get_q6_etr(self, etr_addr, etr_size):
         fd = None
-        wcnss_reg = self.dts_lookup("wcnss@4b000000")
-        etr_reg = self.dts_lookup("q6_etr_dump")
-
-        if etr_reg is not None:
-            etr_addr = int(etr_reg[1], 16)
-            etr_size = int(etr_reg[3], 16)
-        else:
-            print_out_str("!!! q6_etr_dump region is not specified in the dtb, exiting dump")
-            return None
-
-        dump_path =  os.path.split(self.ebi_files[0][3])[0]
-        q6mem_file_path = os.path.join(dump_path, 'q6mem')
-
-        if os.path.isfile(q6mem_file_path) is True and wcnss_reg is not None:
-            wcnss_addr = int(wcnss_reg[1], 16)
-            wcnss_size = int(wcnss_reg[3], 16)
-            start = wcnss_addr
-            offset = etr_addr - wcnss_addr
-            try:
-                fd = open(q6mem_file_path, 'rb')
-                fd.seek(offset)
-                dump = fd.read(etr_size)
-                head_pos = dump.find(b'\xef\xbe\xad\xde')
-            except:
-                fd.close()
-                print_out_str("!!! File {0} cannot be opened".format(q6mem_file_path))
-                return None
-
-        if os.path.isfile(q6mem_file_path) is False or head_pos < 0:
-            for a in self.ebi_files:
-                f, start, end, path = a
-                # Check if the required etr buffer is within the dump range
-                if etr_addr >= start and etr_addr + etr_size <= end:
-                    fd = f
-                    offset = etr_addr - start
-                    break
+        for a in self.ebi_files:
+            f, start, end, path = a
+            # Check if the required etr buffer is within the dump range
+            if etr_addr >= start and etr_addr + etr_size <= end:
+                fd = f
+                offset = etr_addr - start
+                break
 
         end = etr_addr + etr_size
 
