@@ -20,7 +20,7 @@ parser.add_option('--config',dest='config',help=' CONFIG is set to 32 or 64. Def
 parser.add_option('--arch',dest='arch',help='arch is set to ipq807x or ipq60xx. Default is ipq807x')
 (options, args) = parser.parse_args()
 
-module_input_file=open("MODULE_INFO.txt")
+module_input_file=open("MOD_INFO.txt")
 module_output_file=open("Load_modules.cmm","w")
 
 umac = None
@@ -115,7 +115,7 @@ for i in range(len(t32commands)):
 
 file.close()
 
-for line in fileinput.input('MODULE_INFO.txt', inplace=True):
+for line in fileinput.input('MOD_INFO.txt', inplace=True):
     line = line.strip('\n')
     line = line.replace('\0',' ')
     print line
