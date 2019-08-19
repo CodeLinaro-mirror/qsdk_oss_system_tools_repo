@@ -138,7 +138,7 @@ class Slabinfo_summary(RamParser):
                                 num_slabs, slab_size))
 
     def parse(self):
-        if not self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG_ON'):
+        if not self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG'):
             print_out_str ("slub_debug_on is not enabled")
             return
         slab_out = self.ramdump.open_file('slabsummary.txt')
