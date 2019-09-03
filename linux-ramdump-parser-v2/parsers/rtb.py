@@ -48,7 +48,7 @@ class RTB(RamParser):
 
     def get_fun_name(self, addr):
         l = self.ramdump.unwind_lookup(addr)
-        if l is not None  and len(wname) > 3:
+        if l is not None  and len(l) > 3:
             symname, offset, mname, symtab_st_size = l
         else:
             symname = 'Unknown function'
