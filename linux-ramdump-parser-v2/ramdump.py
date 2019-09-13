@@ -1414,19 +1414,6 @@ class RamDump():
                 self.lookup_table.append((int(s[0], 16), s[3].rstrip(), int(s[1], 16)))
         stream.close()
 
-    def address_of(self, symbol):
-        """Returns the address of a symbol.
-
-        Example:
-
-        >>> hex(dump.address_of('linux_banner'))
-        '0xffffffc000c7a0a8L'
-        """
-        try:
-            return self.gdbmi.address_of(symbol)
-        except gdbmi.GdbMIException:
-            pass
-
     def addr_lookup(self, symbol):
         try:
             return self.gdbmi.address_of(symbol)
@@ -1625,11 +1612,6 @@ class RamDump():
         else:
             return s[0]
 
-    def read_s64(self, addr_or_name, virtual=True, cpu=None):
-        """returns a value guaranteed to be 64 bits"""
-        s = self.read_string(addr_or_name, '<q', virtual, cpu)
-        return s[0] if s is not None else None
-
     # returns a value guaranteed to be 64 bits
     def read_u64(self, address, virtual=True, trace=False, cpu=None):
         if trace:
@@ -1673,16 +1655,6 @@ class RamDump():
         else:
             return s[0]
 
-    def read_pointer(self, addr_or_name, virtual=True, cpu=None):
-        """Reads ``addr_or_name`` as a pointer variable.
-
-        The read length is either 32-bit or 64-bit depending on the
-        architecture.  This returns the *value* of the pointer variable
-        (i.e. the address it contains), not the data it points to.
-        """
-        fn = self.read_u32 if self.sizeof('void *') == 4 else self.read_u64
-        return fn(addr_or_name, virtual, cpu)
-
     # reads a 4 or 8 byte field from a structure
     def read_structure_field(self, address, struct_name, field):
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
@@ -1692,23 +1664,20 @@ class RamDump():
             return self.read_u64(address + self.field_offset(struct_name, field))
         return None
 
-    def resolve_virt(self, virt_or_name):
-        """Takes a virtual address or variable name, returns a virtual
-        address
-        """
+    def deference_variable(self, virt_or_name):
+        """deference if the input is not a pointer."""
         if not isinstance(virt_or_name, basestring):
             return virt_or_name
-        return self.address_of(virt_or_name)
+        return self.addr_lookup(virt_or_name)
 
     def read_structure_cstring(self, addr_or_name, struct_name, field,
                                max_length=100):
         """reads a C string from a structure field.  The C string field will be
-        dereferenced before reading, so it should be a ``char *``, not a
-        ``char []``.
+        dereferenced before reading, so it will be always ``char *``.
         """
-        virt = self.resolve_virt(addr_or_name)
+        virt = self.deference_variable(addr_or_name)
         cstring_addr = virt + self.field_offset(struct_name, field)
-        return self.read_cstring(self.read_pointer(cstring_addr), max_length)
+        return self.read_cstring(self.read_word(cstring_addr), max_length)
 
     def read_cstring(self, address, max_length, virtual=True, cpu=None, trace=False):
         addr = address
