@@ -985,6 +985,11 @@ class RamDump():
             magic, status, read_ptr, write_ptr = struct.unpack("<IIII", fd.read(16))
 
             etr_file_path = os.path.join(self.outdir, "q6_etr.bin")
+            if os.path.exists(etr_file_path):
+                try:
+                    os.remove(etr_file_path)
+                except:
+                    print_out_str("!!! Cannot delete old etr dump")
             try:
                 #Write etr dump to a file
                 with open(etr_file_path, 'ab') as etr_file:
@@ -999,6 +1004,7 @@ class RamDump():
                         etr_file.write(fd.read(end - read_ptr))
                         fd.seek(offset)
                         etr_file.write(fd.read(write_ptr - etr_addr))
+                print_out_str("etr binary generated at " + etr_file_path)
                 return True
             except:
                 print_out_str("!!! Cannot write etr dump to output file")
