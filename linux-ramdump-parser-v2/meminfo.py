@@ -16,7 +16,8 @@ import collections
 symbols = {}
 
 nss_modules = [ "qca_nss_dp", "qca_nss_drv", "qca_nss_qdisc" , "qca_nss_crypto",
-                "qca_nss_cfi_ocf" ]
+                "qca_nss_cfi_ocf", "ecm", "qca_ssdk", "nf_conntrack_ipv4",
+                "nf_conntrack", "x_tables", "ip_tables" ]
 wifi_modules = [ "qdf", "wifi_3_0", "qca_ol", "umac", "cfg80211",
                  "qca_spectral" ]
 
