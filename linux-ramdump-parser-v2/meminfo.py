@@ -150,7 +150,7 @@ class meminfo:
         s += "Flags: " + self.flags + "\n"
         s += "Category: " + self.category + "\n"
         s += "Subcategory: " + self.subcategory + "\n"
-        s += "Modules: " + str(self.modules) + "\n"
+        s += "Modules: " + str(list(set(self.modules))) + "\n"
         if len(self.names) > 0:
             uniq_names = list(set(self.names))
             s += "Slab Name: " + str(uniq_names) + "\n"
