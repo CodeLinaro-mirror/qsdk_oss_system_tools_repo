@@ -191,6 +191,37 @@ class Slabinfo(RamParser):
             m = sorted_meminfo[info]
             slabs_output_summary.write(str(m))
 
+        alloc_size = 0
+
+        network_alloc_size = 0
+        wifi_alloc_size = 0
+        nss_alloc_size = 0
+
+        slub_free_pending = 0
+
+        for info in sorted_meminfo:
+            m = sorted_meminfo[info]
+
+            if m.allocation_type == "SLUB Allocation [Free]":
+                slub_free_pending += m.total_size
+                continue
+
+            alloc_size += m.total_size
+
+            if m.category == "Networking":
+                if m.subcategory == "WiFi":
+                    wifi_alloc_size += m.total_size
+                if m.subcategory == "NSS":
+                    nss_alloc_size += m.total_size
+
+        network_alloc_size = wifi_alloc_size + nss_alloc_size
+
+        print_out_str("Total allocated size: {0} KB".format(alloc_size / 1024))
+
+        print_out_str("\tNetwork allocation: {0} KB".format(network_alloc_size / 1024))
+        print_out_str("\t\tWiFi allocation: {0} KB".format(wifi_alloc_size / 1024))
+        print_out_str("\t\tNSS allocation: {0} KB".format(nss_alloc_size / 1024))
+
     def print_slab_page_info(
                 self, ramdump, slab_name, slab_obj, slab_node, start,
                 out_file, map_fn, out_slabs_addrs):
