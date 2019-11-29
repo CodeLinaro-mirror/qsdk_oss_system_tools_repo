@@ -33,7 +33,7 @@ from print_out import print_out_str, set_outfile, print_out_section, print_out_e
 import gdbmi
 
 # Please update version when something is changed!'
-VERSION = '2.0.26'
+VERSION = '2.0.27'
 
 # quick check of system requirements:
 major, minor = sys.version_info[:2]

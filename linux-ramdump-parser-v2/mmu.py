@@ -14,11 +14,14 @@ from register import Register
 import sizes
 
 def phys_to_virt(ramdump, phys):
+	if not ramdump.arm64:
+		return phys - ramdump.phys_offset + ramdump.page_offset
+	if ramdump.kernel_version < (4, 4, 0):
+		return None
 
-        memstart_addr = ramdump.read_u64('memstart_addr')
-        val = (phys - memstart_addr) | ramdump.page_offset
-        return val
-
+	memstart_addr = ramdump.read_s64('memstart_addr')
+	val = (phys - memstart_addr) | ramdump.page_offset
+	return val
 
 class MMU(object):
 
