@@ -199,10 +199,10 @@ for line in mmu_input_file:
 		pa =line[line.find('pa=') + 3: line.find('\0')]
 		pgd_entry_addr = ((int(va, 16) >> 20) * 4) + pgd_int
 		pte_off = ((int(va, 16) & 0xFF000) >> 12) * 4
-		pgd_entry_addr = hex(pgd_entry_addr)
-		pte_off = hex(pte_off)
+		pgd_entry_addr = hex(pgd_entry_addr).rstrip("L")
+		pte_off = hex(pte_off).rstrip("L")
 		pa = (int(pa, 16) & 0xFFFFF000) + 0x45E
-		pa = hex(pa)
+		pa = hex(pa).rstrip("L")
 		mmu_output_cmm.write("GOSUB mmu_translation "+pgd_entry_addr+" "+pte_off+" "+pa+"\n")
 	else:
 		va =line[line.find('va=') + 3: line.find(' ')]
