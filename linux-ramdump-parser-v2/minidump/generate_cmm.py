@@ -98,7 +98,7 @@ else:
     if options.vmpath:
         vmlinux =os.path.join(options.vmpath,"openwrt-ipq-"+ options.arch +"-vmlinux.elf")
     else:
-		vmlinux = "openwrt-ipq-"+ options.arch +"-vmlinux.elf"
+        vmlinux = "openwrt-ipq-"+ options.arch +"-vmlinux.elf"
 
 def file_base_name(file_name):
 	if 'DEBUGFS' in file_name:
