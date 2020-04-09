@@ -528,9 +528,14 @@ class RamDump():
                 self.symtab_st_size = symtab_st_size
 
         def mod_addr_func(self, mod_list):
+
+            high_mem_addr = self.ramdump.addr_lookup('high_memory')
+            vmalloc_offset = 0x800000
+            vmalloc_start = self.ramdump.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
+
             if(self.ramdump.Is_Hawkeye() and self.ramdump.isELF64() and (mod_list & 0xfff0000000 != 0xbff0000000)):
                 return
-            elif(self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and ((mod_list & 0xff000000 != 0x7f000000) and (mod_list & 0x80000000 != 0x80000000))):
+            elif(self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and mod_list & 0xff000000 != 0x7f000000 and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
                 return
             elif(not self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and (mod_list & 0xff000000 !=  0xbf000000)):
                 return
