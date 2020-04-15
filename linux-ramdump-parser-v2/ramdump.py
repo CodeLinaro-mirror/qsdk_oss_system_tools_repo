@@ -19,6 +19,7 @@ import string
 import random
 import platform
 import stat
+import shutil
 
 from boards import get_supported_boards, get_supported_ids
 from tempfile import NamedTemporaryFile
@@ -1034,13 +1035,112 @@ class RamDump():
             length = length * 256 + self.read_byte(command_addr + 7)
             # length does not include the dtb header 'd00dfeed'
             blob = self.read_physical(self.virt_to_phys(command_addr), length + 4, False)
+
             return blob
         else:
             print_out_str('!!! Cannot read dtb start address')
 
         return None
 
-    def auto_parse(self, file_path):
+    def __get_section_file(self, sec_type):
+        switcher = {
+                0: "paging.bin",
+                1: "fwdump.bin",
+                2: "remote.bin",
+                }
+        return switcher.get(sec_type, None)
+
+    def __dump_rddm_segments(self, dump_data_vaddr, dump_path, paging_header=False):
+        PAGING_SEC = 0x0
+        SRAM_SEC = 0x1
+        REMOTE_SEC = 0x2
+
+        dump_seg = self.read_word(dump_data_vaddr)
+        if dump_seg is None:
+            return
+
+        seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+        if seg_address is 0 or seg_address is None:
+            return
+
+        if not os.path.exists(dump_path):
+            print_out_str('!!! RDDM binaries extracted to {0}'.format(dump_path))
+            os.makedirs(dump_path)
+
+        if paging_header:
+            seg_file = self.__get_section_file(PAGING_SEC)
+            seg_file = os.path.join(dump_path, seg_file)
+            with open(seg_file, 'wb') as fp:
+                fp.write("\0" * 512)
+                offset = 0
+                fp.seek(offset)
+                fp.write(struct.pack('<Q', 1))
+                offset = offset + 8
+
+        index = 0
+        paging_seg_count = 0
+        while seg_address is not 0 and seg_address is not None:
+            seg_v_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "v_address")
+            seg_size = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "size")
+            seg_type = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "type")
+            seg_file = self.__get_section_file(seg_type)
+            seg_file = os.path.join(dump_path, seg_file)
+
+            if paging_header:
+                if seg_type == PAGING_SEC:
+                    paging_seg_count = paging_seg_count + 1
+                    with open(seg_file, 'r+b') as fp:
+                        offset = offset + 8
+                        fp.seek(offset)
+                        fp.write(struct.pack('<Q', seg_address))
+                        offset = offset + 8
+                        fp.seek(offset)
+                        fp.write(struct.pack('<Q', seg_size))
+            else:
+                seg = self.read_physical(self.virt_to_phys(seg_v_address), seg_size, False)
+                with open(seg_file, 'ab') as fp:
+                    fp.write(seg)
+
+            dump_seg = dump_seg + self.sizeof("struct cnss_dump_seg")
+            seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+            index = index + 1
+
+        if paging_header:
+            seg_file = self.__get_section_file(PAGING_SEC)
+            seg_file = os.path.join(dump_path, seg_file)
+            with open(seg_file, 'r+b') as fp:
+                fp.seek(8)
+                fp.write(struct.pack('<Q', paging_seg_count))
+
+    def get_rddm_dump(self, outdir):
+        plat_env_index = self.addr_lookup('plat_env_index')
+
+        if plat_env_index is not None:
+            plat_env_index = self.read_int(plat_env_index)
+
+        dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
+        dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+
+        for i in range(plat_env_index):
+            plat_env = self.addr_lookup("plat_env[{0}]".format(i))
+            if plat_env is not None:
+                plat_env = self.read_word(plat_env)
+
+            qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+            if qrtr_node_id is not 0:
+                print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+
+            dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+
+            if os.path.exists(dump_path):
+                shutil.rmtree(dump_path)
+
+            dump_data_vaddr = plat_env + dump_data_vaddr_off
+
+            self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
+            self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+
+    def auto_parse(self):
         first_mem_path = None
 
         for f in first_mem_file_names:

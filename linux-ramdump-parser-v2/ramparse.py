@@ -289,6 +289,8 @@ if __name__ == '__main__':
     parser.add_option('', '--dump_q6_etr', action='callback',
                       dest='dump_q6_etr', help='etr region (q6mem dump path, wlanfw elf path) to extract etr dump q6_etr.bin',
                       callback=parse_etr_option, default=False)
+    parser.add_option('', '--parse-rddm', action='store_true',
+                      dest='rddm', help='Extract RDDM dumps')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -539,6 +541,11 @@ if __name__ == '__main__':
         else:
             print_out_str('!!! etr region not found in device-tree')
         print_out_str('--------- end q6_etr extraction ---------')
+
+    if options.rddm:
+        print_out_str('\n--------- begin RDDM extraction ---------\n')
+        dump.get_rddm_dump(options.outdir)
+        print_out_str('\n--------- end RDDM extraction ---------\n')
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
