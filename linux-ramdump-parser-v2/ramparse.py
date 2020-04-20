@@ -542,6 +542,10 @@ if __name__ == '__main__':
             print_out_str('!!! etr region not found in device-tree')
         print_out_str('--------- end q6_etr extraction ---------')
 
+    print_out_str('\n--------- begin glink log parsing ---------\n')
+    dump.get_glink_logging(options.outdir)
+    print_out_str('\n--------- end glink log parsing ---------\n')
+
     if options.rddm:
         print_out_str('\n--------- begin RDDM extraction ---------\n')
         dump.get_rddm_dump(options.outdir)

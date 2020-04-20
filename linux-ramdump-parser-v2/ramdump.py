@@ -1140,6 +1140,76 @@ class RamDump():
             self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
             self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
 
+    def parse_struct_rpm_cmd_log(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct rpm_cmd_log", "timestamp")
+            cmd = self.read_structure_field(ptr, "struct rpm_cmd_log", "cmd")
+            param1 = self.read_structure_field(ptr, "struct rpm_cmd_log", "param1")
+            param2 = self.read_structure_field(ptr, "struct rpm_cmd_log", "param2")
+            rxtail = self.read_structure_field(ptr, "struct rpm_cmd_log", "rxtail")
+            rxhead = self.read_structure_field(ptr, "struct rpm_cmd_log", "rxhead")
+            global_timer_lo = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_lo")
+            global_timer_hi = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_hi")
+            hdr = self.read_structure_field(ptr, "struct rpm_cmd_log", "hdr")
+            hdr = self.read_physical(self.virt_to_phys(ptr + self.field_offset("struct rpm_cmd_log", "hdr")), 60, False)
+            Ahdr = ["{:02x}".format(ord(c)) for c in hdr]
+
+            ptr = ptr + self.sizeof("struct rpm_cmd_log")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3}; rxtail = {4}; rxhead = {5}; global_timer_lo = {6}; global_timer_hi = {7}; hdr[60] = {8};\n".format(timestamp, cmd, param1, param2, rxtail, rxhead, global_timer_lo, global_timer_hi, Ahdr))
+
+    def parse_struct_glinkwork(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct glinkwork", "timestamp")
+            cmd = self.read_structure_field(ptr, "struct glinkwork", "cmd")
+            param1 = self.read_structure_field(ptr, "struct glinkwork", "param1")
+            param2 = self.read_structure_field(ptr, "struct glinkwork", "param2")
+
+            ptr = ptr + self.sizeof("struct glinkwork")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3};\n".format(timestamp, cmd, param1, param2))
+
+    def get_glink_logging(self,  outdir):
+        RPMLOG_SIZE = 256
+
+        glinkintr = self.addr_lookup('glinkintr')
+        glinkintrindex = self.addr_lookup('glinkintrindex')
+
+        glinksend = self.addr_lookup('glinksend')
+        glinksendindex = self.addr_lookup('glinksendindex')
+
+        glinkwork = self.addr_lookup('glink_work')
+        glinkworkindex = self.addr_lookup('glinkworkindex')
+
+        if glinkintrindex is None or glinksendindex is None or glinkworkindex is None \
+        or glinkintr is None or glinksend is None or glinkwork is None:
+            print_out_str('!!! Required symbol(s) not found! Skipping..')
+            return
+
+        glinkintrindex = self.read_int(glinkintrindex)
+        glinksendindex = self.read_int(glinksendindex)
+        glinkworkindex = self.read_int(glinkworkindex)
+
+        file_path = os.path.join(outdir, "glinkintr.txt")
+        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex, file_path)
+
+        file_path = os.path.join(outdir, "glinksend.txt")
+        self.parse_struct_rpm_cmd_log(glinksend, glinksendindex, file_path)
+
+        file_path = os.path.join(outdir, "glinkwork.txt")
+        self.parse_struct_glinkwork(glinkwork, glinkworkindex, file_path)
+
+
     def auto_parse(self):
         first_mem_path = None
 
