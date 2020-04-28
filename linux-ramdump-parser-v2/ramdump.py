@@ -1374,7 +1374,7 @@ class RamDump():
             #startup_script.write('mmu.pt.list 0xffffff8000000000\n'.encode('ascii', 'ignore'))
         elif self.Is_Hawkeye() and self.isELF32():
                 startup_script.write('r.s M 0x13\n'.encode('ascii', 'ignore'))
-                startup_script.write('PER.Set.simple SPR:0x30200 %Quad 0x41204000\n'.encode('ascii', 'ignore'))
+                startup_script.write('PER.Set.simple SPR:0x30200 %Quad 0x{0:x}\n'.format(self.swapper_pg_dir_addr + self.phys_offset).encode('ascii', 'ignore'))
                 startup_script.write('PER.Set.simple C15:0x1 %Long 0x1025\n'.encode('ascii', 'ignore'))
                 startup_script.write('Data.Set SPR:0x36110 %Quad 0x535\n'.encode('ascii', 'ignore'))
                 startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
