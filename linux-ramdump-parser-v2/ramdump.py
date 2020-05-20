@@ -473,8 +473,12 @@ class RamDump():
                 module_symtab = self.ramdump.read_word(mod_list + self.ramdump.module_symtab_offset)
                 module_strtab = self.ramdump.read_word(mod_list + self.ramdump.module_strtab_offset)
 
-            module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_init_text_size_offset)
-            module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_core_text_size_offset)
+            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
+                module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_text_size_offset)
+                module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_text_size_offset)
+            else:
+                module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_init_text_size_offset)
+                module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_core_text_size_offset)
             name = self.mod_addr_name
             best = 0
             addr = self.mod_addr
@@ -534,11 +538,11 @@ class RamDump():
             vmalloc_offset = 0x800000
             vmalloc_start = self.ramdump.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
-            if(self.ramdump.Is_Hawkeye() and self.ramdump.isELF64() and (mod_list & 0xfff0000000 != 0xbff0000000)):
+            if(self.ramdump.Is_Hawkeye() and self.ramdump.isELF64() and (mod_list & 0xfff0000000 != self.ramdump.mod_start_addr)):
                 return
-            elif(self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and mod_list & 0xff000000 != 0x7f000000 and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
+            elif(self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and mod_list & 0xff000000 != self.ramdump.mod_start_addr and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
                 return
-            elif(not self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and (mod_list & 0xff000000 !=  0xbf000000)):
+            elif(not self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and (mod_list & 0xff000000 != self.ramdump.mod_start_addr)):
                 return
 
             name = self.ramdump.read_cstring(mod_list + self.ramdump.mod_name_offset, 30)
@@ -546,10 +550,16 @@ class RamDump():
             if name is None or len(name) <= 1:
                 return
 
-            module_init_addr = self.ramdump.read_word(mod_list + self.ramdump.module_init_offset)
-            module_init_size = self.ramdump.read_u32(mod_list + self.ramdump.module_init_size_offset)
-            module_core_addr = self.ramdump.read_word(mod_list + self.ramdump.module_core_offset)
-            module_core_size = self.ramdump.read_u32(mod_list + self.ramdump.module_core_size_offset)
+            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
+                module_init_addr = self.ramdump.read_word(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_offset)
+                module_init_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_size_offset)
+                module_core_addr = self.ramdump.read_word(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_offset)
+                module_core_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_size_offset)
+            else:
+                module_init_addr = self.ramdump.read_word(mod_list + self.ramdump.module_init_offset)
+                module_init_size = self.ramdump.read_u32(mod_list + self.ramdump.module_init_size_offset)
+                module_core_addr = self.ramdump.read_word(mod_list + self.ramdump.module_core_offset)
+                module_core_size = self.ramdump.read_u32(mod_list + self.ramdump.module_core_size_offset)
 
             if ((module_init_size > 0) and (module_init_addr <= self.mod_addr) and (self.mod_addr < (module_init_addr + module_init_size))):
                     self.mod_addr_name = name
@@ -672,8 +682,16 @@ class RamDump():
         self.CONFIG_SLUB_DEBUG_ON = False
         self.CONFIG_HIGHMEM = False
         self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = False
+
+	if not self.get_version_from_vmlinux():
+	    print_out_str('!!! Could not get the Linux version from vmlinux!')
+            print_out_str('!!! Exiting now')
+            sys.exit(1)
         if self.arm64:
-            self.page_offset = 0xffffffc000000000
+	    if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+                self.page_offset = 0xffffffc010000000
+	    else:
+                self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
         if page_offset is not None:
             print_out_str(
@@ -754,12 +772,19 @@ class RamDump():
         self.unwind = self.Unwinder(self)
 
         self.mod_name_offset = self.field_offset('struct module', 'name')
-        self.module_init_offset = self.field_offset('struct module','module_init')
-        self.module_core_offset = self.field_offset('struct module','module_core')
-        self.module_init_size_offset = self.field_offset('struct module','init_size')
-        self.module_core_size_offset = self.field_offset('struct module','core_size')
-        self.module_init_text_size_offset = self.field_offset('struct module','init_text_size')
-        self.module_core_text_size_offset = self.field_offset('struct module','core_text_size')
+        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            self.module_layout_init_offset = self.field_offset('struct module', 'init_layout')
+            self.module_layout_core_offset = self.field_offset('struct module', 'core_layout')
+            self.module_offset = self.field_offset('struct module_layout', 'base')
+            self.module_size_offset = self.field_offset('struct module_layout', 'size')
+            self.module_text_size_offset = self.field_offset('struct module_layout', 'text_size')
+        else:
+            self.module_init_offset = self.field_offset('struct module','module_init')
+            self.module_core_offset = self.field_offset('struct module','module_core')
+            self.module_init_size_offset = self.field_offset('struct module','init_size')
+            self.module_core_size_offset = self.field_offset('struct module','core_size')
+            self.module_init_text_size_offset = self.field_offset('struct module','init_text_size')
+            self.module_core_text_size_offset = self.field_offset('struct module','core_text_size')
         if (re.search('3.14.77', self.version) is not None or (self.kernel_version[0], self.kernel_version[1]) >= (4, 4)):
             self.kallsyms_offset = self.field_offset('struct module', 'kallsyms')
             self.module_symtab_offset = self.field_offset('struct mod_kallsyms','symtab')
@@ -781,6 +806,13 @@ class RamDump():
             self.symtab_st_name_offset = self.field_offset('struct elf32_sym', 'st_name')
             self.symtab_st_info_offset = self.field_offset('struct elf32_sym', 'st_info')
             self.symtab_st_size_offset = self.field_offset('struct elf32_sym', 'st_size')
+
+        if (self.isELF64() and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+            self.mod_start_addr = 0xc000000000
+        elif(self.isELF64()):
+            self.mod_start_addr = 0xbff0000000
+        else:
+            self.mod_start_addr = 0x7f000000
 
         if(self.isELF64()):
             self.symtab_size = self.sizeof('struct elf64_sym')
@@ -807,9 +839,20 @@ class RamDump():
         kconfig_addr = self.addr_lookup('kernel_config_data')
         if kconfig_addr is None:
             return
-        kconfig_size = self.sizeof('kernel_config_data')
-        # size includes magic, offset from it
-        kconfig_size = kconfig_size - 16 - 1
+        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            kconfig_addr_end = self.addr_lookup('kernel_config_data_end')
+            if kconfig_addr_end is None:
+                return
+            # kconfig_size doesn't include magic strings
+            kconfig_size = kconfig_addr_end - kconfig_addr
+            # magic is 8 bytes before kconfig_addr and data
+            # starts at kconfig_addr for kernel > 5.4
+            # subtract 8 bytes to perform sanity check
+            kconfig_addr -= 8
+        else:
+            kconfig_size = self.sizeof('kernel_config_data')
+            # size includes magic, offset from it
+            kconfig_size = kconfig_size - 16 - 1
         zconfig = NamedTemporaryFile(mode='wb', delete=False)
         # kconfig data starts with magic 8 byte string, go past that
         s = self.read_cstring(kconfig_addr, 8)
@@ -852,19 +895,33 @@ class RamDump():
         s = config + '=y'
         return s in self.config
 
-    def get_version(self):
-       	s = '{0} -ex "print linux_banner" -ex "quit" {1}'.format(self.gdb_path, self.vmlinux)
-	f = os.popen(s)
+    def get_version_from_vmlinux(self):
+        s = '{0} -ex "print linux_banner" -ex "quit" {1}'.format(self.gdb_path, self.vmlinux)
+        f = os.popen(s)
         now = f.read()
-	try:
+        try:
                 start_pos = now.index("Linux version")
-                banner=now[start_pos:]
-                flen = len(banner)
-                flen = flen - 4
+                self.banner = now[start_pos:]
+                self.flen = len(self.banner)
+                self.flen = self.flen - 4
         except:
                 print('not able to find linux banner')
+		return False
 
-	banner_addr = self.addr_lookup('linux_banner')
+	v = re.search('Linux version (\d{0,2}\.\d{0,2}\.\d{0,3})', self.banner)
+        if v is None:
+            print_out_str('!!! Could not match version! {0}'.format(self.banner))
+            return False
+        self.version = v.group(1)
+        match = re.search('(\d+)\.(\d+)\.(\d+)', self.version)
+        if match is not None:
+            self.kernel_version = tuple(map(int, match.groups()))
+        else:
+            print_out_str('!!! Could not extract version info! {0}'.format(self.version))
+        return True
+
+    def get_version(self):
+        banner_addr = self.addr_lookup('linux_banner')
         if banner_addr is not None:
             # Don't try virt to phys yet, compute manually
             banner_addr = banner_addr - self.page_offset + self.phys_offset
@@ -873,7 +930,7 @@ class RamDump():
                 print_out_str('!!! Could not read banner address!')
                 return False
 
-            if (format(banner[0:flen]) != format(b[0:flen])):
+            if (format(self.banner[0:self.flen]) != format(b[0:self.flen])):
                 # special custom case for gale issues
                 if (self.custom is not None and self.custom.lower() == "gale".lower()):
                     print_out_str ("!!! It is a gale issue!")
@@ -882,35 +939,25 @@ class RamDump():
                         lbc = 'readbanner {0} linux_banner'.format(self.vmlinux)
                         lbp = os.popen(lbc)
                         lb = lbp.read()
-                        banner = lb
-                        if (format(banner[0:flen]) == format(b[0:flen])):
-                            print_out_str ('readbanner={0}'.format(banner))
+                        self.banner = lb
+                        if (format(self.banner[0:self.flen]) == format(b[0:self.flen])):
+                            print_out_str ('readbanner={0}'.format(self.banner))
                         else:
                             print_out_str('!!! linux banner version mismatch!')
-                            print_out_str('!!! In vmlinux : {0}'.format(banner[0:flen]))
-                            print_out_str('!!! In Dump    : {0}'.format(b[0:flen]))
+                            print_out_str('!!! In vmlinux : {0}'.format(self.banner[0:self.flen]))
+                            print_out_str('!!! In Dump    : {0}'.format(b[0:self.flen]))
                             return False
                     except:
                         print_out_str ('!!! Unable to read linux_banner by readbanner utility !!')
                         print_out_str('!!! linux banner version mismatch!')
-                        print_out_str('!!! In vmlinux : {0}'.format(banner[0:flen]))
-                        print_out_str('!!! In Dump    : {0}'.format(b[0:flen]))
+                        print_out_str('!!! In vmlinux : {0}'.format(self.banner[0:self.flen]))
+                        print_out_str('!!! In Dump    : {0}'.format(b[0:self.flen]))
                         return False
                 else:
                     print_out_str('!!! linux banner version mismatch!')
-                    print_out_str('!!! In vmlinux : {0}'.format(banner[0:flen]))
-                    print_out_str('!!! In Dump    : {0}'.format(b[0:flen]))
+                    print_out_str('!!! In vmlinux : {0}'.format(self.banner[0:self.flen]))
+                    print_out_str('!!! In Dump    : {0}'.format(b[0:self.flen]))
                     return False
-            v = re.search('Linux version (\d{0,2}\.\d{0,2}\.\d{0,3})', b)
-            if v is None:
-                print_out_str('!!! Could not match version! {0}'.format(b))
-                return False
-            self.version = v.group(1)
-            match = re.search('(\d+)\.(\d+)\.(\d+)', self.version)
-            if match is not None:
-                self.kernel_version = tuple(map(int, match.groups()))
-            else:
-                print_out_str('!!! Could not extract version info! {0}'.format(self.version))
 
             print_out_str('Linux Banner: ' + b.rstrip())
             print_out_str('version = {0}'.format(self.version))
@@ -2042,7 +2089,10 @@ class RamDump():
         return self.read_word(per_cpu_offset_addr_indexed)
 
     def get_num_cpus(self):
-        cpu_present_bits_addr = self.addr_lookup('cpu_present_bits')
+        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            cpu_present_bits_addr = self.addr_lookup('__cpu_present_mask')
+        else:
+            cpu_present_bits_addr = self.addr_lookup('cpu_present_bits')
         cpu_present_bits = self.read_word(cpu_present_bits_addr)
 
         b = self.get_command_line()
