@@ -19,6 +19,7 @@ import string
 import random
 import platform
 import stat
+import shutil
 
 from boards import get_supported_boards, get_supported_ids
 from tempfile import NamedTemporaryFile
@@ -1034,13 +1035,182 @@ class RamDump():
             length = length * 256 + self.read_byte(command_addr + 7)
             # length does not include the dtb header 'd00dfeed'
             blob = self.read_physical(self.virt_to_phys(command_addr), length + 4, False)
+
             return blob
         else:
             print_out_str('!!! Cannot read dtb start address')
 
         return None
 
-    def auto_parse(self, file_path):
+    def __get_section_file(self, sec_type):
+        switcher = {
+                0: "paging.bin",
+                1: "fwdump.bin",
+                2: "remote.bin",
+                }
+        return switcher.get(sec_type, None)
+
+    def __dump_rddm_segments(self, dump_data_vaddr, dump_path, paging_header=False):
+        PAGING_SEC = 0x0
+        SRAM_SEC = 0x1
+        REMOTE_SEC = 0x2
+
+        dump_seg = self.read_word(dump_data_vaddr)
+        if dump_seg is None:
+            return
+
+        seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+        if seg_address is 0 or seg_address is None:
+            return
+
+        if not os.path.exists(dump_path):
+            print_out_str('!!! RDDM binaries extracted to {0}'.format(dump_path))
+            os.makedirs(dump_path)
+
+        if paging_header:
+            seg_file = self.__get_section_file(PAGING_SEC)
+            seg_file = os.path.join(dump_path, seg_file)
+            with open(seg_file, 'wb') as fp:
+                fp.write("\0" * 512)
+                offset = 0
+                fp.seek(offset)
+                fp.write(struct.pack('<Q', 1))
+                offset = offset + 8
+
+        index = 0
+        paging_seg_count = 0
+        while seg_address is not 0 and seg_address is not None:
+            seg_v_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "v_address")
+            seg_size = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "size")
+            seg_type = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "type")
+            seg_file = self.__get_section_file(seg_type)
+            seg_file = os.path.join(dump_path, seg_file)
+
+            if paging_header:
+                if seg_type == PAGING_SEC:
+                    paging_seg_count = paging_seg_count + 1
+                    with open(seg_file, 'r+b') as fp:
+                        offset = offset + 8
+                        fp.seek(offset)
+                        fp.write(struct.pack('<Q', seg_address))
+                        offset = offset + 8
+                        fp.seek(offset)
+                        fp.write(struct.pack('<Q', seg_size))
+            else:
+                seg = self.read_physical(self.virt_to_phys(seg_v_address), seg_size, False)
+                with open(seg_file, 'ab') as fp:
+                    fp.write(seg)
+
+            dump_seg = dump_seg + self.sizeof("struct cnss_dump_seg")
+            seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+            index = index + 1
+
+        if paging_header:
+            seg_file = self.__get_section_file(PAGING_SEC)
+            seg_file = os.path.join(dump_path, seg_file)
+            with open(seg_file, 'r+b') as fp:
+                fp.seek(8)
+                fp.write(struct.pack('<Q', paging_seg_count))
+
+    def get_rddm_dump(self, outdir):
+        plat_env_index = self.addr_lookup('plat_env_index')
+
+        if plat_env_index is not None:
+            plat_env_index = self.read_int(plat_env_index)
+
+        dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
+        dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+
+        for i in range(plat_env_index):
+            plat_env = self.addr_lookup("plat_env[{0}]".format(i))
+            if plat_env is not None:
+                plat_env = self.read_word(plat_env)
+
+            qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+            if qrtr_node_id is not 0:
+                print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+
+            dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+
+            if os.path.exists(dump_path):
+                shutil.rmtree(dump_path)
+
+            dump_data_vaddr = plat_env + dump_data_vaddr_off
+
+            self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
+            self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+
+    def parse_struct_rpm_cmd_log(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct rpm_cmd_log", "timestamp")
+            cmd = self.read_structure_field(ptr, "struct rpm_cmd_log", "cmd")
+            param1 = self.read_structure_field(ptr, "struct rpm_cmd_log", "param1")
+            param2 = self.read_structure_field(ptr, "struct rpm_cmd_log", "param2")
+            rxtail = self.read_structure_field(ptr, "struct rpm_cmd_log", "rxtail")
+            rxhead = self.read_structure_field(ptr, "struct rpm_cmd_log", "rxhead")
+            global_timer_lo = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_lo")
+            global_timer_hi = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_hi")
+            hdr = self.read_structure_field(ptr, "struct rpm_cmd_log", "hdr")
+            hdr = self.read_physical(self.virt_to_phys(ptr + self.field_offset("struct rpm_cmd_log", "hdr")), 60, False)
+            Ahdr = ["{:02x}".format(ord(c)) for c in hdr]
+
+            ptr = ptr + self.sizeof("struct rpm_cmd_log")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3}; rxtail = {4}; rxhead = {5}; global_timer_lo = {6}; global_timer_hi = {7}; hdr[60] = {8};\n".format(timestamp, cmd, param1, param2, rxtail, rxhead, global_timer_lo, global_timer_hi, Ahdr))
+
+    def parse_struct_glinkwork(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct glinkwork", "timestamp")
+            cmd = self.read_structure_field(ptr, "struct glinkwork", "cmd")
+            param1 = self.read_structure_field(ptr, "struct glinkwork", "param1")
+            param2 = self.read_structure_field(ptr, "struct glinkwork", "param2")
+
+            ptr = ptr + self.sizeof("struct glinkwork")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3};\n".format(timestamp, cmd, param1, param2))
+
+    def get_glink_logging(self,  outdir):
+        RPMLOG_SIZE = 256
+
+        glinkintr = self.addr_lookup('glinkintr')
+        glinkintrindex = self.addr_lookup('glinkintrindex')
+
+        glinksend = self.addr_lookup('glinksend')
+        glinksendindex = self.addr_lookup('glinksendindex')
+
+        glinkwork = self.addr_lookup('glink_work')
+        glinkworkindex = self.addr_lookup('glinkworkindex')
+
+        if glinkintrindex is None or glinksendindex is None or glinkworkindex is None \
+        or glinkintr is None or glinksend is None or glinkwork is None:
+            print_out_str('!!! Required symbol(s) not found! Skipping..')
+            return
+
+        glinkintrindex = self.read_int(glinkintrindex)
+        glinksendindex = self.read_int(glinksendindex)
+        glinkworkindex = self.read_int(glinkworkindex)
+
+        file_path = os.path.join(outdir, "glinkintr.txt")
+        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex, file_path)
+
+        file_path = os.path.join(outdir, "glinksend.txt")
+        self.parse_struct_rpm_cmd_log(glinksend, glinksendindex, file_path)
+
+        file_path = os.path.join(outdir, "glinkwork.txt")
+        self.parse_struct_glinkwork(glinkwork, glinkworkindex, file_path)
+
+
+    def auto_parse(self):
         first_mem_path = None
 
         for f in first_mem_file_names:
@@ -1204,7 +1374,7 @@ class RamDump():
             #startup_script.write('mmu.pt.list 0xffffff8000000000\n'.encode('ascii', 'ignore'))
         elif self.Is_Hawkeye() and self.isELF32():
                 startup_script.write('r.s M 0x13\n'.encode('ascii', 'ignore'))
-                startup_script.write('PER.Set.simple SPR:0x30200 %Quad 0x41204000\n'.encode('ascii', 'ignore'))
+                startup_script.write('PER.Set.simple SPR:0x30200 %Quad 0x{0:x}\n'.format(self.swapper_pg_dir_addr + self.phys_offset).encode('ascii', 'ignore'))
                 startup_script.write('PER.Set.simple C15:0x1 %Long 0x1025\n'.encode('ascii', 'ignore'))
                 startup_script.write('Data.Set SPR:0x36110 %Quad 0x535\n'.encode('ascii', 'ignore'))
                 startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
