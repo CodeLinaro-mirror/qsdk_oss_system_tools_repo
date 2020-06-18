@@ -19,10 +19,26 @@ import fileinput
 parser = parser = OptionParser()
 parser.add_option('--config',dest='config',default='32',help='CONFIG is set to 32 or 64. Default is 32 bit')
 parser.add_option('--arch',dest='arch',default='ipq807x',help='arch is set to ipq807x or ipq60xx. Default is ipq807x')
+parser.add_option('--kver',dest='kver',default='4.4',help='kver is set to 4.4 or 5.4. Default is 4.4')
 parser.add_option('--vmpath',dest='vmpath',help='Path to vmlinux.elf file.')
 parser.add_option('--path',dest='path',help='Path to dump binaries.')
 parser.add_option('--modpath',dest='mpath',help='Path to load modules.')
 (options, args) = parser.parse_args()
+
+if options.kver == "4.4":
+	PAGE_OFFSET = "0xffffffc000000000"
+	HIGH_MEM = "0xffffffc03f000000"
+	if options.config == "64":
+		elf = "openwrt-ipq-"+ options.arch +"_64-vmlinux.elf"
+	else:
+		elf = "openwrt-ipq-"+ options.arch +"-vmlinux.elf"
+else:
+	PAGE_OFFSET = "0xffffffc010000000"
+	HIGH_MEM = "0xffffffc03f000000"
+	if options.config == "64":
+		elf = "openwrt-ipq807x-generic-vmlinux.elf"
+	else:
+		elf = "openwrt-ipq807x-ipq807x_32-vmlinux.elf"
 
 if options.path:
 	module_input_file=open(os.path.join(options.path,"MOD_INFO.txt"))
@@ -81,9 +97,9 @@ if options.config == "64":
     "task.dtask",
     "v.v  %ASCII %STRING linux_banner"]
     if options.vmpath:
-       vmlinux =os.path.join(options.vmpath,"openwrt-ipq-"+ options.arch +"_64-vmlinux.elf")
+		vmlinux =os.path.join(options.vmpath,elf)
     else:
-       vmlinux = "openwrt-ipq-"+ options.arch +"_64-vmlinux.elf"
+		vmlinux = elf
 else:
     t32commands = ["r.s M 0x13",
 	"PER.Set.simple SPR:0x30200 %Quad 0x"+PGD,
@@ -96,9 +112,9 @@ else:
 	"task.dtask",
 	"v.v  %ASCII %STRING linux_banner"]
     if options.vmpath:
-        vmlinux =os.path.join(options.vmpath,"openwrt-ipq-"+ options.arch +"-vmlinux.elf")
+        vmlinux =os.path.join(options.vmpath,elf)
     else:
-        vmlinux = "openwrt-ipq-"+ options.arch +"-vmlinux.elf"
+        vmlinux = elf
 
 def file_base_name(file_name):
 	if 'DEBUGFS' in file_name:
@@ -156,7 +172,7 @@ else:
 #		  physical address | 0x45E to account for page table attributes
 #
 # For 64 bit:
-#	If address range is equal to or above 0xffffffc000000000:
+#	If address range is equal to or above PAGE_OFFSET:
 #		"d.s A:< PMD entry address > %LE %Long (physical address & 0x00000) | 0x001"
 #   else
 #		"d.s A:< PMD entry address > %LE %Long PTE base address"
@@ -209,7 +225,7 @@ for line in mmu_input_file:
 		pa =line[line.find('pa=') + 3: line.find('\0')]
 		mem_check = int(va, 16)
 		mem_check = hex(mem_check).rstrip("L")
-		if mem_check >= "0xffffffc000000000" and mem_check <= "0xffffffc03f000000":
+		if mem_check >= PAGE_OFFSET and mem_check <= HIGH_MEM :
 			pgd_entry_addr = (((int(va, 16) >> 30) & 0x1FF) * 8 ) + pgd_int
 			pmd_off = ((int(va, 16) >> 21) & 0x1FF) * 8
 			pgd_entry_addr = hex(pgd_entry_addr).rstrip("L")
