@@ -57,9 +57,7 @@ class Slabinfo_summary(RamParser):
     def print_slab_summary(self, slab_out):
         total_freeobjects = 0
         original_slab = self.ramdump.addr_lookup('slab_caches')
-        cpu_present_bits_addr = self.ramdump.addr_lookup('cpu_present_bits')
-        cpu_present_bits = self.ramdump.read_word(cpu_present_bits_addr)
-        cpus = bin(cpu_present_bits).count('1')
+        cpus = self.ramdump.get_num_cpus()
         slab_list_offset = self.ramdump.field_offset(
             'struct kmem_cache', 'list')
         slab_name_offset = self.ramdump.field_offset(

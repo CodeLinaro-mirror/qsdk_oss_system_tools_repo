@@ -196,7 +196,7 @@ class RunQueues(RamParser):
                     print_out_str('<0x{0:x}>:{1} [0x{2:x}]'.format(i, symname, callstack_addr))
 
     def stack_dump_trace(self, svc_r13_core):
-        stext = self.ramdump.addr_lookup('stext')
+        stext = self.ramdump.addr_lookup('_stext')
         etext = self.ramdump.addr_lookup('_etext')
         stack_offset = self.ramdump.field_offset('struct task_struct', 'stack')
         if(self.ramdump.isELF64()):
