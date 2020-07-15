@@ -16,12 +16,10 @@ from parser_util import register_parser, RamParser, cleanupString
 
 def find_panic(ramdump, addr_stack, thread_task_name):
     if ramdump.arm64:
-        stack_size = 0x4000
         increment = 8
     else:
-        stack_size = 0x2000
         increment = 4
-    for i in range(addr_stack, addr_stack + stack_size, increment):
+    for i in range(addr_stack, addr_stack + ramdump.thread_size, increment):
         if ramdump.arm64:
             pc = ramdump.read_word(i + 8) - 4
             fp = ramdump.read_word(i)
@@ -34,8 +32,8 @@ def find_panic(ramdump, addr_stack, thread_task_name):
             fp = 0
 
         l = ramdump.unwind_lookup(pc,0,0)
-        if l is not None and len(l) > 3:
-            s, offset, foo, symtab_st_size = l
+        if l is not None and len(l) >= 3:
+            s, offset, foo = l[:3]
             if s == 'panic':
                 print_out_str('Faulting process found! Name {0})'.format(thread_task_name))
                 ramdump.unwind.unwind_backtrace(spx, fp, pc, lr, '')

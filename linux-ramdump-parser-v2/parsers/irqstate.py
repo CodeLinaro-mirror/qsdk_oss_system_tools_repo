@@ -144,7 +144,7 @@ class IrqParse(RamParser):
                 ram_dump, irq_desc_tree, i)
             if irq_desc is None:
                 continue
-            irqnum = ram_dump.read_u32(irq_desc + irq_num_offset)
+            irqnum = ram_dump.read_u32(irq_desc + irq_data_offset + irq_num_offset)
             irqcount = ram_dump.read_u32(irq_desc + irq_count_offset)
             action = ram_dump.read_word(irq_desc + irq_action_offset)
             kstat_irqs_addr = ram_dump.read_word(irq_desc + kstat_irqs_offset)
@@ -166,6 +166,8 @@ class IrqParse(RamParser):
             if action != 0:
                 name_addr = ram_dump.read_word(action + action_name_offset)
                 name = ram_dump.read_cstring(name_addr, 48)
+                if name is None:
+                    continue
                 print_out_str(
                     '{0:4} {1} {2:30} {3:10}'.format(irqnum, irq_stats_str, name, chip_name))
 

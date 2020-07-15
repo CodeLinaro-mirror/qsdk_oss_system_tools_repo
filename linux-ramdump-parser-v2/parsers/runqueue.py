@@ -173,7 +173,7 @@ class RunQueues(RamParser):
             incr = 8
         else:
             incr = 4
-        for i in range(stack_addr, stack_addr + 0x2000, incr):
+        for i in range(stack_addr, stack_addr + self.ramdump.thread_size, incr):
             callstack_addr = self.ramdump.read_word(i)
             if (text_start_addr <= callstack_addr < text_end_addr) or \
                (0xbf000000 <= callstack_addr < 0xbfe00000) or (self.ramdump.isELF64() and (0xffffffbffc000000 <= callstack_addr < 0xffffffbffe000000)):
@@ -212,7 +212,7 @@ class RunQueues(RamParser):
             incr = 8
         else:
             incr = 4
-        for i in range(svc_r13_core, svc_r13_core + 0x2000, incr):
+        for i in range(svc_r13_core, svc_r13_core + self.ramdump.thread_size, incr):
              stack_addr = self.ramdump.read_word(i)
              if stack_addr is None:
                  continue
