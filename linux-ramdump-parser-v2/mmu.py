@@ -602,12 +602,11 @@ class Armv8MMU(MMU):
         try:
             sl_desc = self.do_sl_level_lookup(
                 base.value, virt_r.sl_index)
+            if sl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
+                r = self.sl_block_desc_2_phys(sl_desc, virt_r)
+                return r
         except:
             return None
-
-        if sl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
-            r = self.sl_block_desc_2_phys(sl_desc, virt_r)
-            return r
 
         base.base = sl_desc.next_level_base_addr_upper
         try:
