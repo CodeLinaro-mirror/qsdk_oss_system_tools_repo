@@ -291,6 +291,7 @@ if __name__ == '__main__':
                       callback=parse_etr_option, default=False)
     parser.add_option('', '--parse-rddm', action='store_true',
                       dest='rddm', help='Extract RDDM dumps')
+    parser.add_option('', '--ath11k', action='store_true', dest='ath11k', help='ath11k specific parse')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -466,6 +467,12 @@ if __name__ == '__main__':
     if options.everything:
         options.qtf = True
 
+    if options.ath11k:
+        print_out_str("using ath11k module")
+        if options.readelf_path is None or  options.ko_path is None:
+            print_out_str("!!! Missing --readelf-path or --ko-path option")
+            sys.exit(1)
+
     #path to nss driver
     ko_path = options.ko_path
     readelf_path = options.readelf_path
@@ -475,7 +482,7 @@ if __name__ == '__main__':
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=options.arm64,
-                   page_offset=options.page_offset, qtf=options.qtf)
+                   page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k)
 
     if options.shell or options.classic_shell:
         print("Entering interactive shell mode.")

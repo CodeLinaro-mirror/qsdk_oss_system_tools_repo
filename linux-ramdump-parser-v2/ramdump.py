@@ -606,7 +606,7 @@ class RamDump():
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
                  file_path, phys_offset, outdir,qtf_path, custom, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
-                 qtf=False, t32_host_system=None):
+                 qtf=False, t32_host_system=None, ath11k=None):
         self.ebi_files = []
         self.phys_offset = None
         self.tz_start = 0
@@ -634,6 +634,24 @@ class RamDump():
         self.cpu1_reg_path = cpu1_reg_path
         self.custom = custom
         self.kernel_version = (0, 0, 0)
+        self.ath11k = ath11k
+
+        if self.Is_Ath11k() and readelf_path is not None:
+            self.ath11k_path = self.ko_path + "/ath11k.ko"
+            if os.path.isfile(self.ath11k_path):
+                self.ath11k_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.ath11k_path)
+                seg_info_cmd = '{0} {1} --quiet -ex "print &ath11k_coredump_seg_info" -ex "quit" '.format(self.gdb_path, self.ath11k_path)
+                fd = os.popen(seg_info_cmd)
+                ret = fd.read()
+                try:
+                    start_pos = ret.index(") 0x")
+                    self.seg_info_offset = ret[start_pos+2:].strip().split(' ')[0]
+                except:
+                    self.seg_info_offset = None
+            else:
+                self.ath11k_gnu_linkonce_this_size = None
+                self.seg_info_offset = None
+                print_out_str("ath11k module file not present")
 
         if self.Is_Hawkeye() and self.isELF32():
             self.page_offset = 0x80000000
@@ -642,26 +660,22 @@ class RamDump():
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
             self.qca_nss_drv_path = self.ko_path + "/qca-nss-drv.ko"
-            #readelf command
-            nss_readelf_cmd = '{0} -S {1}'.format(self.readelf_path, self.qca_nss_drv_path)
-            #Get offset of  stats_drv[21] variables using gdb command
-            nss_top_main_stats_drv_cmd = '{0} {1} --quiet -ex "print &nss_top_main->stats_drv[21]" -ex "quit" '.format(self.gdb_path, self.qca_nss_drv_path)
-            f1 = os.popen(nss_readelf_cmd)
-            ret1 = f1.read()
-            f2 = os.popen(nss_top_main_stats_drv_cmd)
-            ret2 = f2.read()
-            try:
-                # get string after this word from readelf output
-                secondpart = ret1.split(".gnu.linkonce.thi")[1]
-                t = re.sub('\s+', ' ', secondpart ).strip()
-                fhex = t.split(" ")[3]
-                #get size of .gnu.linkonce.thi from section header
-                self.gnu_linkonce_this_size = fhex.strip()
-                start_pos2 = ret2.index(") 0x")
-                self.stats_drv_offset = ret2[start_pos2+2:].strip()
-            except:
+            if os.path.isfile(self.qca_nss_drv_path):
+                #readelf command
+                self.gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.qca_nss_drv_path)
+                #Get offset of  stats_drv[21] variables using gdb command
+                nss_top_main_stats_drv_cmd = '{0} {1} --quiet -ex "print &nss_top_main->stats_drv[21]" -ex "quit" '.format(self.gdb_path, self.qca_nss_drv_path)
+                f2 = os.popen(nss_top_main_stats_drv_cmd)
+                ret2 = f2.read()
+                try:
+                    start_pos2 = ret2.index(") 0x")
+                    self.stats_drv_offset = ret2[start_pos2+2:].strip()
+                except:
+                    self.stats_drv_offset = None
+            else:
                 self.gnu_linkonce_this_size = None
                 self.stats_drv_offset = None
+                print_out_str("qca-nss-drv module file not present")
         else:
             self.gnu_linkonce_this_size = None
             self.stats_drv_offset = None
@@ -1149,7 +1163,10 @@ class RamDump():
         if dump_seg is None:
             return
 
-        seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+        if self.Is_Ath11k():
+            seg_address = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "addr")
+        else:
+            seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
         if seg_address is 0 or seg_address is None:
             return
 
@@ -1170,9 +1187,17 @@ class RamDump():
         index = 0
         paging_seg_count = 0
         while seg_address is not 0 and seg_address is not None:
-            seg_v_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "v_address")
-            seg_size = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "size")
-            seg_type = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "type")
+            if self.Is_Ath11k():
+                seg_size = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "len")
+                seg_type = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "type")
+                next_dump_seg = dump_seg + self.sizeof("struct ath11k_dump_segment")
+                next_seg_address = self.read_structure_field(next_dump_seg, "struct ath11k_dump_segment", "addr")
+            else:
+                seg_size = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "size")
+                seg_type = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "type")
+                next_dump_seg = dump_seg + self.sizeof("struct cnss_dump_seg")
+                next_seg_address = self.read_structure_field(next_dump_seg, "struct cnss_dump_seg", "address")
+
             seg_file = self.__get_section_file(seg_type)
             seg_file = os.path.join(dump_path, seg_file)
 
@@ -1187,12 +1212,12 @@ class RamDump():
                         fp.seek(offset)
                         fp.write(struct.pack('<Q', seg_size))
             else:
-                seg = self.read_physical(self.virt_to_phys(seg_v_address), seg_size, False)
+                seg = self.read_physical(seg_address, seg_size, False)
                 with open(seg_file, 'ab') as fp:
                     fp.write(seg)
 
-            dump_seg = dump_seg + self.sizeof("struct cnss_dump_seg")
-            seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
+            dump_seg = next_dump_seg
+            seg_address = next_seg_address
             index = index + 1
 
         if paging_header:
@@ -1202,33 +1227,104 @@ class RamDump():
                 fp.seek(8)
                 fp.write(struct.pack('<Q', paging_seg_count))
 
+    def get_mod_func(self, mod_list):
+        high_mem_addr = self.addr_lookup('high_memory')
+        vmalloc_offset = 0x800000
+        vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
+
+        if(self.isELF64() and (mod_list & 0xfff0000000 != self.mod_start_addr)):
+            return
+        elif (self.isELF32() and self.Is_Hawkeye() and mod_list & 0xff000000 != self.mod_start_addr and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
+            return
+        elif(self.isELF32() and not self.Is_Hawkeye() and mod_list & 0xff000000 != self.mod_start_addr):
+            return
+        name = self.read_cstring(mod_list + self.mod_name_offset, 30)
+        if (name is None):
+            return
+        if len(name) < 1 and name.isalpha() is False:
+            return
+        if (name == self.mod_name):
+            self.mod_list_addr = mod_list
+
+    def get_module(self, name):
+        if (self.mod_start is None):
+           print_out_str('module variable not valid')
+           return
+
+        self.mod_name = name
+        #simple walk through to get address of module
+        name_list_walker = llist.ListWalker(self, self.mod_start, self.next_mod_offset)
+        name_list_walker.walk(self.mod_start, self.get_mod_func)
+
     def get_rddm_dump(self, outdir):
-        plat_env_index = self.addr_lookup('plat_env_index')
+        if self.Is_Ath11k():
+            self.get_module("ath11k")
 
-        if plat_env_index is not None:
-            plat_env_index = self.read_int(plat_env_index)
+            if self.mod_list_addr is None:
+                print_out_str('Unable to get ath11k module address')
+                return
 
-        dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
-        dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+            if self.ath11k_gnu_linkonce_this_size is None:
+                print_out_str('Unable to get gnu linkonce size')
+                return
 
-        for i in range(plat_env_index):
-            plat_env = self.addr_lookup("plat_env[{0}]".format(i))
-            if plat_env is not None:
-                plat_env = self.read_word(plat_env)
+            if self.seg_info_offset is None:
+                print_out_str('Unable to get segment info address')
+                return
 
-            qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+            seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath11k_gnu_linkonce_this_size, 16)
+
+            self.gdbmi.close()
+
+            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath11k_path)
+            self.gdbmi.open()
+
+            qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
             if qrtr_node_id is not 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
-            dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+                dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
-            if os.path.exists(dump_path):
-                shutil.rmtree(dump_path)
+                if os.path.exists(dump_path):
+                    shutil.rmtree(dump_path)
 
-            dump_data_vaddr = plat_env + dump_data_vaddr_off
+                dump_seg_off = self.field_offset("struct ath11k_coredump_segment_info", "seg")
+                dump_seg = seg_info + dump_seg_off
 
-            self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
-            self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+                self.__dump_rddm_segments(dump_seg, dump_path, True)
+                self.__dump_rddm_segments(dump_seg, dump_path, False)
+
+            self.gdbmi.close()
+
+            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
+            self.gdbmi.open()
+        else:
+            plat_env_index = self.addr_lookup('plat_env_index')
+
+            if plat_env_index is not None:
+                plat_env_index = self.read_int(plat_env_index)
+
+            dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
+            dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+
+            for i in range(plat_env_index):
+                plat_env = self.addr_lookup("plat_env[{0}]".format(i))
+                if plat_env is not None:
+                    plat_env = self.read_word(plat_env)
+
+                qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+                if qrtr_node_id is not 0:
+                    print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+
+                dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+
+                if os.path.exists(dump_path):
+                    shutil.rmtree(dump_path)
+
+                dump_data_vaddr = plat_env + dump_data_vaddr_off
+
+                self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
+                self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
 
     def parse_struct_rpm_cmd_log(self, ptr, length, file_path):
         if os.path.exists(file_path):
@@ -2184,3 +2280,23 @@ class RamDump():
             if ((hex(addr) >= hex(ebi_files[i][1])) and (hex(addr) <= hex(ebi_files[i][2]))):
                 return 1
         return 0
+
+    def Is_Ath11k(self):
+        if self.ath11k is not None:
+            return True
+        else:
+            return False
+
+    def get_gnu_linkonce_size(self, elf_path, bin_path):
+        cmd = '{0} -S {1}'.format(elf_path, bin_path)
+        fd = os.popen(cmd)
+        rd = fd.read()
+        try:
+            # get string after this word from readelf output
+            part = rd.split(".gnu.linkonce.thi")[1]
+            temp = re.sub('\s+', ' ', part ).strip()
+            f_hex = temp.split(" ")[3]
+            #get size of .gnu.linkonce.thi from section header
+            return f_hex.strip()
+        except:
+            return None
