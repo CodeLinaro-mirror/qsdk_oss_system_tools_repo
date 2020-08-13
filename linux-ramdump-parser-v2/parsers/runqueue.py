@@ -55,6 +55,10 @@ class RunQueues(RamParser):
         se_offset = self.ramdump.field_offset('struct task_struct', 'se')
         cfs_nr_running_offset = self.ramdump.field_offset(
             'struct cfs_rq', 'nr_running')
+        if cfs_nr_running_offset < 0:
+            print_out_str("cfs_rq not available")
+            return
+
         my_q_offset = self.ramdump.field_offset('struct sched_entity', 'my_q')
 
         if se_addr == 0 or se_addr is None or my_q_offset == 0 or my_q_offset is None:
@@ -128,6 +132,10 @@ class RunQueues(RamParser):
         active_offset = self.ramdump.field_offset('struct rt_rq', 'active')
         queue_offset = self.ramdump.field_offset(
             'struct rt_prio_array', 'queue')
+        if queue_offset < 0:
+            print_out_str("rt_prio_array not available")
+            return
+
         rt_offset = self.ramdump.field_offset('struct task_struct', 'rt')
 
         array_addr = rt_rq_addr + active_offset

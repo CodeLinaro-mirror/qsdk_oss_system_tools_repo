@@ -19,6 +19,7 @@ import string
 import random
 import platform
 import stat
+import glob
 import shutil
 
 from boards import get_supported_boards, get_supported_ids
@@ -464,10 +465,16 @@ class RamDump():
 
         def mod_get_symbol(self, mod_list, mod_sec_addr, val):
             if (re.search('3.14.77', self.ramdump.version) is not None or (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (4, 4)):
-                kallsyms = self.ramdump.read_word(mod_list + self.ramdump.kallsyms_offset);
-                module_symtab_count = self.ramdump.read_u32(kallsyms + self.ramdump.module_symtab_count_offset)
-                module_strtab = self.ramdump.read_word(kallsyms + self.ramdump.module_strtab_offset)
-                module_symtab = self.ramdump.read_word(kallsyms + self.ramdump.module_symtab_offset)
+                if self.ramdump.kallsyms_offset >= 0:
+                    kallsyms = self.ramdump.read_word(mod_list + self.ramdump.kallsyms_offset);
+                    module_symtab_count = self.ramdump.read_u32(kallsyms + self.ramdump.module_symtab_count_offset)
+                    module_strtab = self.ramdump.read_word(kallsyms + self.ramdump.module_strtab_offset)
+                    module_symtab = self.ramdump.read_word(kallsyms + self.ramdump.module_symtab_offset)
+                else:
+                    kallsyms = -1
+                    module_symtab_count = -1
+                    module_strtab = -1
+                    module_symtab = -1
             else:
                 module_symtab_count = self.ramdump.read_word(mod_list + self.ramdump.module_symtab_count_offset)
                 module_symtab = self.ramdump.read_word(mod_list + self.ramdump.module_symtab_offset)
@@ -517,8 +524,13 @@ class RamDump():
             except MemoryError:
                  pass #print_out_str('MemoryError caught here')
             if (best == 0):
-                self.sym_name = "UNKNOWN"
-                self.sym_off = 0
+                gs = self.ramdump.gdbmi.get_symbol_info(addr)
+                if gs is not None:
+                    self.sym_name = gs.symbol
+                    self.sym_off = gs.offset
+                else:
+                    self.sym_name = "UNKNOWN"
+                    self.sym_off = 0
                 #print_out_str('not able to resolve addr 0x{0} in module section'.format(addr))
                 #return None
             else:
@@ -591,7 +603,7 @@ class RamDump():
             else:
                 return None
 
-    def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, qca_nss_drv_path, objdump_path, ebi,
+    def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
                  file_path, phys_offset, outdir,qtf_path, custom, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
                  qtf=False, t32_host_system=None):
@@ -605,6 +617,7 @@ class RamDump():
         self.offset_table = []
         self.vmlinux = vmlinux_path
         self.nm_path = nm_path
+        self.ko_path = ko_path
         self.gdb_path = gdb_path
         self.readelf_path = readelf_path
         self.objdump_path = objdump_path
@@ -626,9 +639,9 @@ class RamDump():
             self.page_offset = 0x80000000
         else:
             self.page_offset = 0xc0000000
-        if qca_nss_drv_path is not None and readelf_path is not None:
+        if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
-            self.qca_nss_drv_path = qca_nss_drv_path
+            self.qca_nss_drv_path = self.ko_path + "/qca-nss-drv.ko"
             #readelf command
             nss_readelf_cmd = '{0} -S {1}'.format(self.readelf_path, self.qca_nss_drv_path)
             #Get offset of  stats_drv[21] variables using gdb command
@@ -771,6 +784,8 @@ class RamDump():
             print_out_str('!!! Some features may be disabled!')
         self.unwind = self.Unwinder(self)
 
+        self.next_mod_offset = self.field_offset('struct module','list')
+        self.mod_start = self.read_word('modules')
         self.mod_name_offset = self.field_offset('struct module', 'name')
         if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
             self.module_layout_init_offset = self.field_offset('struct module', 'init_layout')
@@ -787,9 +802,24 @@ class RamDump():
             self.module_core_text_size_offset = self.field_offset('struct module','core_text_size')
         if (re.search('3.14.77', self.version) is not None or (self.kernel_version[0], self.kernel_version[1]) >= (4, 4)):
             self.kallsyms_offset = self.field_offset('struct module', 'kallsyms')
-            self.module_symtab_offset = self.field_offset('struct mod_kallsyms','symtab')
-            self.module_strtab_offset = self.field_offset('struct mod_kallsyms','strtab')
-            self.module_symtab_count_offset = self.field_offset('struct mod_kallsyms','num_symtab')
+            if self.kallsyms_offset >= 0:
+                self.module_symtab_offset = self.field_offset('struct mod_kallsyms','symtab')
+                self.module_strtab_offset = self.field_offset('struct mod_kallsyms','strtab')
+                self.module_symtab_count_offset = self.field_offset('struct mod_kallsyms','num_symtab')
+                if self.ko_path is not None:
+                    print("CONFIG_KALLSYMS is set. Hence not parsing ko modules.")
+            else:
+                # CONFIG_KALLSYMS is not set
+                self.syms_offset = self.field_offset('struct module', 'syms')
+                self.num_syms_offset = self.field_offset('struct module', 'num_syms')
+                self.module_symtab_offset = -1
+                self.module_strtab_offset = -1
+                self.module_symtab_count_offset = -1
+                print_out_str("CONFIG_KALLSYMS not set")
+                if self.ko_path is not None:
+                    list_walker = llist.ListWalker(self, self.mod_start, self.next_mod_offset)
+                    list_walker.walk(self.mod_start, self.add_sym_file)
+
         else:
             self.module_symtab_offset = self.field_offset('struct module','symtab')
             self.module_strtab_offset = self.field_offset('struct module','strtab')
@@ -818,8 +848,21 @@ class RamDump():
             self.symtab_size = self.sizeof('struct elf64_sym')
         else:
             self.symtab_size = self.sizeof('struct elf32_sym')
-        self.next_mod_offset = self.field_offset('struct module','list')
-        self.mod_start = self.read_word('modules')
+
+    def add_sym_file(self, mod_list):
+
+        name = self.read_cstring(mod_list + self.mod_name_offset, 50)
+
+        if name is None or len(name) <= 1:
+            return
+
+        name = self.ko_path + "/" + name + ".ko"
+        g = glob.glob(name.replace("_", "?"))
+        if len(g) < 1:
+            return
+
+        module_core_addr = self.read_word(mod_list + self.module_core_offset)
+        self.gdbmi.add_sym_file(g[0], module_core_addr)
 
     def __del__(self):
         self.gdbmi.close()
@@ -1686,7 +1729,7 @@ class RamDump():
         try:
             return self.gdbmi.field_offset(the_type, field)
         except gdbmi.GdbMIException:
-            pass
+            return -1
 
     def container_of(self, ptr, the_type, member):
         try:

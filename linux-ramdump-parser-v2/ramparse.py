@@ -278,8 +278,8 @@ if __name__ == '__main__':
                       help='CPU 0 Registers')
     parser.add_option('', '--cpu1-reg-path', dest='cpu1_reg_path',
                       help='CPU 1 Registers')
-    parser.add_option('', '--qca-nss-drv-path', dest='qca_nss_drv_path',
-                      help='qca nss drv path')
+    parser.add_option('', '--ko-path', dest='ko_path',
+                      help='*.ko files path')
     parser.add_option('', '--readelf-path', dest='readelf_path',
                       help='readelf path')
     parser.add_option('', '--custom', dest='custom',
@@ -467,10 +467,10 @@ if __name__ == '__main__':
         options.qtf = True
 
     #path to nss driver
-    qca_nss_drv_path = options.qca_nss_drv_path
+    ko_path = options.ko_path
     readelf_path = options.readelf_path
 
-    dump = RamDump(options.vmlinux, nm_path, gdb_path, readelf_path, qca_nss_drv_path, objdump_path, options.ram_addr,
+    dump = RamDump(options.vmlinux, nm_path, gdb_path, readelf_path, ko_path, objdump_path, options.ram_addr,
                    options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom,
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
