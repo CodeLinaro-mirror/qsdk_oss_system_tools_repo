@@ -23,6 +23,13 @@ def gdb_hex_to_dec(val):
     match = re.search('(0x[0-9a-fA-F]+)', val)
     return int(match.group(1), 16)
 
+class GdbSymbolInfo(object):
+
+    def __init__(self, symbol, offset, section, addr):
+        self.symbol = symbol
+        self.offset= offset
+        self.section = section
+        self.addr = addr
 
 class GdbSymbol(object):
 
@@ -195,6 +202,21 @@ class GdbMI(object):
         """Returns the address of the specified symbol."""
         result = self._run_for_one('print /x &{0}'.format(symbol))
         return int(result.split(' ')[-1], 16)
+
+    def get_symbol_info_fail_safe(self, address):
+        """Returns a GdbSymbol representing the nearest symbol found at
+        `address'."""
+        result = self._run_for_one('info symbol ' + hex(address))
+        parts = result.split(' ')
+        symbol = parts[0]
+        plus = parts[1]
+        offset = parts[2]
+        section = parts[-1]
+        if len(parts) < 3 or plus != "+":
+           symbol = None
+           offset = None
+
+        return GdbSymbolInfo(symbol, offset, section, address)
 
     def get_symbol_info(self, address):
         """Returns a GdbSymbol representing the nearest symbol found at

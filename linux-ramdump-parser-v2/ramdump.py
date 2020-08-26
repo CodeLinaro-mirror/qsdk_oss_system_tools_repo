@@ -1791,6 +1791,12 @@ class RamDump():
         except gdbmi.GdbMIException:
             pass
 
+    def symbol_lookup_fail_safe(self, addr):
+        try:
+            return self.gdbmi.get_symbol_info_fail_safe(addr)
+        except gdbmi.GdbMIException:
+            pass
+
     def symbol_lookup(self, addr):
         try:
             return self.gdbmi.symbol_at(addr).symbol
