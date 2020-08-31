@@ -1283,7 +1283,7 @@ class RamDump():
             if qrtr_node_id is not 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
-                dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+                dump_path = os.path.join(outdir, "rddm_dump")
 
                 if os.path.exists(dump_path):
                     shutil.rmtree(dump_path)
@@ -1825,7 +1825,7 @@ class RamDump():
         try:
             return self.gdbmi.field_offset(the_type, field)
         except gdbmi.GdbMIException:
-            return -1
+            pass
 
     def container_of(self, ptr, the_type, member):
         try:

@@ -234,7 +234,7 @@ class CheckForPanic(RamParser):
 
     def parse(self):
         if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
-            addr = self.ramdump.addr_lookup('ctx_tlv_msg')
+            addr = self.ramdump.addr_lookup('tlv_msg')
             offset_is_panic = self.ramdump.field_offset('struct ctx_save_tlv_msg', 'is_panic')
             result = self.ramdump.read_byte(addr + offset_is_panic)
         else:
