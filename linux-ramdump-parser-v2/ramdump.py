@@ -641,11 +641,15 @@ class RamDump():
             if os.path.isfile(self.ath11k_path):
                 self.ath11k_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.ath11k_path)
                 seg_info_cmd = '{0} {1} --quiet -ex "print &ath11k_coredump_seg_info" -ex "quit" '.format(self.gdb_path, self.ath11k_path)
+                seg_info_nm_cmd = '{0} {1} | grep "B ath11k_coredump_seg_info"'.format(self.nm_path, self.ath11k_path)
                 fd = os.popen(seg_info_cmd)
+                fd_nm = os.popen(seg_info_nm_cmd)
+                ret_nm = fd_nm.read()
                 ret = fd.read()
                 try:
                     start_pos = ret.index(") 0x")
                     self.seg_info_offset = ret[start_pos+2:].strip().split(' ')[0]
+                    self.seg_info_offset = self.seg_info_offset and ret_nm[2:].strip().split(' ')[0]
                 except:
                     self.seg_info_offset = None
             else:
