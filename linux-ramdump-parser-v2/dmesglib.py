@@ -108,43 +108,45 @@ class DmesgLib(object):
                      re.search("Function entered at \[<" + ptr_re + ">\].* from \[<" + ptr_re + ">\].*", partial))):
                     x = re.findall(ptr_re, partial)
 
-                    s = self.ramdump.gdbmi.get_symbol_info(int(x[0], 16))
-                    s1 = self.ramdump.gdbmi.get_symbol_info(int(x[1], 16))
-                    if s is not None and s1 is not None:
+                    x0, x1 = x[0], x[1]
+                    s = self.ramdump.gdbmi.get_symbol_info(int(x0, 16))
+                    s1 = self.ramdump.gdbmi.get_symbol_info(int(x1, 16))
+                    if s1 is not None:
                         if len(s1.mod):
                             s1.mod = " " + s1.mod
                         x1 = s1.symbol + "+" + hex(s1.offset) + s1.mod
 
+                    if s is not None:
                         if len(s.mod):
                             s.mod = " " + s.mod
+                        x0 = s.symbol + "+" + hex(s.offset) + s.mod
 
-                        if re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial):
-                            x0 = s.symbol + "+" + hex(s.offset) + s.mod
-                            #
-                            # Convert the string from the following format to
-                            #	pc : [<813ac97c>]    lr : [<813acc94>]    psr: 60000013
-                            #
-                            # this format so that ATT is not upset
-                            #	PC is at osif_delete_vap_wait_and_free+0x278/0x3a0 [umac]
-                            #	LR is at osif_delete_vap_wait_and_free+0x278/0x3a0 [umac]
-                            #	pc : [<df50ea24>]    lr : [<df50ea24>]    psr: 60000013
-                            f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
-                                timestamp / 1000000000, (timestamp % 1000000000) / 1000, "PC is at " + x0)
-                            self.outfile.write(f)
-                            dmesg_out.write(f)
-                            f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
-                                timestamp / 1000000000, (timestamp % 1000000000) / 1000, "LR is at " + x1)
-                            self.outfile.write(f)
-                            dmesg_out.write(f)
-                            # don't modify 'partial', it has to get printed AS IS
-                        else:
-                            #
-                            # Convert the string from the following format to
-                            #	Function entered at [<8141039c>] from [<7f0d519c>]
-                            #
-                            # this format so that ATT is not upset
-                            #	[<df512690>] (osif_ioctl_delete_vap [umac]) from [<df4fc9ac>] (ieee80211_ioctl+0x140/0x1c00 [umac])
-                            x0 = s.symbol + s.mod
+                    if re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial):
+                        #
+                        # Convert the string from the following format to
+                        #	pc : [<813ac97c>]    lr : [<813acc94>]    psr: 60000013
+                        #
+                        # this format so that ATT is not upset
+                        #	PC is at osif_delete_vap_wait_and_free+0x278/0x3a0 [umac]
+                        #	LR is at osif_delete_vap_wait_and_free+0x278/0x3a0 [umac]
+                        #	pc : [<df50ea24>]    lr : [<df50ea24>]    psr: 60000013
+                        f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
+                            timestamp / 1000000000, (timestamp % 1000000000) / 1000, "PC is at " + str(x0))
+                        self.outfile.write(f)
+                        dmesg_out.write(f)
+                        f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
+                            timestamp / 1000000000, (timestamp % 1000000000) / 1000, "LR is at " + str(x1))
+                        self.outfile.write(f)
+                        dmesg_out.write(f)
+                        # don't modify 'partial', it has to get printed AS IS
+                    else:
+                        #
+                        # Convert the string from the following format to
+                        #	Function entered at [<8141039c>] from [<7f0d519c>]
+                        #
+                        # this format so that ATT is not upset
+                        #	[<df512690>] (osif_ioctl_delete_vap [umac]) from [<df4fc9ac>] (ieee80211_ioctl+0x140/0x1c00 [umac])
+                        if s is not None and s1 is not None:
                             partial = "[<" + x[0] + ">] (" + x0 + ") from [<" + x[1] + ">] (" + x1 + ")"
 
                 f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
