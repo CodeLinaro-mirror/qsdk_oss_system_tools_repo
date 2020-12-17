@@ -825,7 +825,7 @@ class RamDump():
                 self.module_strtab_offset = self.field_offset('struct mod_kallsyms','strtab')
                 self.module_symtab_count_offset = self.field_offset('struct mod_kallsyms','num_symtab')
                 if self.ko_path is not None:
-                    print("CONFIG_KALLSYMS is set. Hence not parsing ko modules.")
+                    print_out_str("CONFIG_KALLSYMS is set. Hence not parsing ko modules generically. Modules would be loaded for specific cases")
             else:
                 # CONFIG_KALLSYMS is not set
                 self.syms_offset = self.field_offset('struct module', 'syms')
