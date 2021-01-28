@@ -75,12 +75,19 @@ class memtracer_summary(RamParser):
     def checksum(self, debug_obj, stack_trace_offset, Alloc_size):
         str_hash = ""
         self.stack_trace_list = []
+
+        #pointer size in bytes
+        if self.ramdump.arm64:
+            ptr_size = 8
+        else:
+            ptr_size = 4
+
         for k in range(1, 9):
             if self.module_updated != 1:
                self.module_updated = 0
 
             stack_trace_addr = self.ramdump.read_word(
-                                      debug_obj + stack_trace_offset + (4*k))
+                                debug_obj + stack_trace_offset + (ptr_size*k))
             stack_trace = self.ramdump.symbol_lookup_fail_safe(stack_trace_addr).symbol
             offset = self.ramdump.symbol_lookup_fail_safe(stack_trace_addr).offset
             stack_trace = self.validate_stack(stack_trace, offset, stack_trace_addr, Alloc_size)
