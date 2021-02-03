@@ -360,8 +360,12 @@ class Slabinfo(RamParser):
         slabs_output_summary.close()
 
     def parse(self):
-        if not self.ramdump.CONFIG_SLUB_DEBUG or not self.ramdump.is_config_defined('CONFIG_STACKTRACE'):
+        if (len(self.ramdump.config) != 0) and (not self.ramdump.CONFIG_SLUB_DEBUG or not self.ramdump.is_config_defined('CONFIG_STACKTRACE')):
             print_out_str ("either slub_debug_on or stacktrace is not enabled")
+            return
+        cmdline = self.ramdump.get_command_line()
+        if cmdline.find("slub_debug=FZPU") == -1:
+            print_out_str ("slub_debug=FZPU is not present in command line. Boot args is not properly set")
             return
         slabname = None
         for arg in sys.argv:

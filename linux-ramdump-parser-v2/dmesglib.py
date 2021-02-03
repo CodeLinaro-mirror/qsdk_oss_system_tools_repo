@@ -107,19 +107,25 @@ class DmesgLib(object):
                     (re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial) or
                      re.search("Function entered at \[<" + ptr_re + ">\].* from \[<" + ptr_re + ">\].*", partial))):
                     x = re.findall(ptr_re, partial)
-
                     x0, x1 = x[0], x[1]
-                    s = self.ramdump.gdbmi.get_symbol_info(int(x0, 16))
-                    s1 = self.ramdump.gdbmi.get_symbol_info(int(x1, 16))
-                    if s1 is not None:
-                        if len(s1.mod):
-                            s1.mod = " " + s1.mod
-                        x1 = s1.symbol + "+" + hex(s1.offset) + s1.mod
 
+                    try:
+                        s = self.ramdump.gdbmi.get_symbol_info(int(x0, 16))
+                    except:
+                        s = None
                     if s is not None:
                         if len(s.mod):
                             s.mod = " " + s.mod
                         x0 = s.symbol + "+" + hex(s.offset) + s.mod
+
+                    try:
+                        s1 = self.ramdump.gdbmi.get_symbol_info(int(x1, 16))
+                    except:
+                        s1 = None
+                    if s1 is not None:
+                        if len(s1.mod):
+                            s1.mod = " " + s1.mod
+                        x1 = s1.symbol + "+" + hex(s1.offset) + s1.mod
 
                     if re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial):
                         #
