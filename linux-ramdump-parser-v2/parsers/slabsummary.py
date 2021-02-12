@@ -136,8 +136,12 @@ class Slabinfo_summary(RamParser):
                                 num_slabs, slab_size))
 
     def parse(self):
-        if not self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG'):
+        if len(self.ramdump.config) != 0 and not self.ramdump.is_config_defined('CONFIG_SLUB_DEBUG'):
             print_out_str ("slub_debug_on is not enabled")
+            return
+        cmdline = self.ramdump.get_command_line()
+        if cmdline.find("slub_debug=FZPU") == -1:
+            print_out_str ("slub_debug=FZPU is not present in command line. Boot args is not properly set")
             return
         slab_out = self.ramdump.open_file('slabsummary.txt')
         self.print_slab_summary(slab_out)
