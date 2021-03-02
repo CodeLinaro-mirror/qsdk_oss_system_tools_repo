@@ -117,6 +117,8 @@ class DmesgLib(object):
                         if len(s.mod):
                             s.mod = " " + s.mod
                         x0 = s.symbol + "+" + hex(s.offset) + s.mod
+                    else:
+                        x0 = "0x" + x0
 
                     try:
                         s1 = self.ramdump.gdbmi.get_symbol_info(int(x1, 16))
@@ -126,6 +128,8 @@ class DmesgLib(object):
                         if len(s1.mod):
                             s1.mod = " " + s1.mod
                         x1 = s1.symbol + "+" + hex(s1.offset) + s1.mod
+                    else:
+                        x1 = "0x" + x1
 
                     if re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial):
                         #
