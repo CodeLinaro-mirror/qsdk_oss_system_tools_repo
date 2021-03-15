@@ -1399,6 +1399,62 @@ class RamDump():
         file_path = os.path.join(outdir, "glinkwork.txt")
         self.parse_struct_glinkwork(glinkwork, glinkworkindex, file_path)
 
+    def extract_modules_from_console(self, file_path):
+        print_out_str("Extracting functions and modules from Hex symbols in console log!!")
+        consoleLogString = ""
+
+        if self.isELF64():
+            ptr_re = "[0-9a-f]{16}"
+        else:
+            ptr_re = "[0-9a-f]{8}"
+
+        PCLRPattern = "pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*"
+        FunctionPattern = "Function entered at \[<" + ptr_re + ">\].* from \[<" + ptr_re + ">\].*"
+
+        with open(file_path, 'r') as Lines:
+            for partial in Lines:
+                if (self.kallsyms_offset < 0 and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
+                    (re.search(PCLRPattern, partial) or re.search(FunctionPattern, partial))):
+                    x = re.findall(ptr_re, partial)
+                    x0, x1 = x[0], x[1]
+
+                    try:
+                        s = self.gdbmi.get_symbol_info(int(x0, 16))
+                    except:
+                        s = None
+                    if s is not None:
+                        if len(s.mod):
+                            s.mod = " " + s.mod
+                        x0 = s.symbol + "+" + hex(s.offset) + s.mod
+                    else:
+                        x0 = "0x" + x0
+
+                    try:
+                        s1 = self.gdbmi.get_symbol_info(int(x1, 16))
+                    except:
+                        s1 = None
+                    if s1 is not None:
+                        if len(s1.mod):
+                            s1.mod = " " + s1.mod
+                        x1 = s1.symbol + "+" + hex(s1.offset) + s1.mod
+                    else:
+                        x1 = "0x" + x1
+
+                    if re.search(PCLRPattern, partial):
+                        timestamp = partial.split("pc :")[0]
+                        f = '{0}{1}\n'.format(timestamp, "PC is at " + str(x0))
+                        consoleLogString += f
+                        f = '{0}{1}\n'.format(timestamp, "LR is at " + str(x1))
+                        consoleLogString += f
+                    else:
+                        timestamp = partial.split("Function entered at")[0]
+                        if s is not None and s1 is not None:
+                            partial = timestamp + "[<" + x[0] + ">] (" + x0 + ") from [<" + x[1] + ">] (" + x1 + ")\n"
+
+                f = '{0}'.format(partial)
+                consoleLogString += f
+            with open(file_path, 'w') as console_log:
+                console_log.write(consoleLogString)
 
     def auto_parse(self):
         first_mem_path = None
