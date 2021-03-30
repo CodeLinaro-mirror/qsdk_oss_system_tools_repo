@@ -292,6 +292,7 @@ if __name__ == '__main__':
     parser.add_option('', '--parse-rddm', action='store_true',
                       dest='rddm', help='Extract RDDM dumps')
     parser.add_option('', '--ath11k', action='store_true', dest='ath11k', help='ath11k specific parse')
+    parser.add_option('', '--console-log', dest='console_log', help='parse console logs to extract functions and modules')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -567,6 +568,11 @@ if __name__ == '__main__':
         print_out_str('\n--------- watchdog time -------')
         get_wdog_timing(dump)
         print_out_str('---------- end watchdog time-----')
+
+    if options.console_log:
+        print_out_str('\n--------- begin console log extraction -------')
+        dump.extract_modules_from_console(options.console_log)
+        print_out_str('--------- end console log extraction -------')
 
     # we called parser.add_option with dest=p.cls.__name__ above,
     # so if the user passed that option then `options' will have a
