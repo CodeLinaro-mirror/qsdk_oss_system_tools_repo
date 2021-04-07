@@ -556,6 +556,8 @@ class Armv8MMU(MMU):
     def block_or_page_desc_2_phys(self, desc, virt_r, n):
         phys = Register(output_address=(47, n),
                         page_offset=(n - 1, 0))
+        if phys is None or desc is None:
+            return 0
         phys.output_address = desc.output_address
         virt_r.add_field('rest', (n - 1, 0))
         phys.page_offset |= virt_r.rest
