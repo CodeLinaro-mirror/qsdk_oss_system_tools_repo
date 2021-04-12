@@ -22,6 +22,8 @@ wifi_modules = [ "qdf", "wifi_3_0", "qca_ol", "umac", "cfg80211",
                  "qca_spectral" ]
 
 def symbol_info_str(addr, function, offset, size, module):
+    if addr is None:
+        return ""
     if size == 0:
         return " [<{0}>] {1}".format(hex(addr)[2:], hex(addr))
     elif module == None:
@@ -69,7 +71,8 @@ class meminfo_ranked:
     def insert(self, names, pfns, addrs, size, flags, free=0):
         addr_str = ""
         for addr in addrs:
-            addr_str += str(hex(addr)) + " "
+            if addr is not None:
+                addr_str += str(hex(addr)) + " "
         if self.meminfos.has_key(addr_str):
             self.meminfos[addr_str].update_meminfo(names, pfns, addrs, size, flags)
         else:

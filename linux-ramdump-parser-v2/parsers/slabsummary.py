@@ -44,8 +44,12 @@ class Slabinfo_summary(RamParser):
                 return totalfree
             seen.append(page)
             page = page - slab_lru_offset
-            mapcount = self.ramdump.read_structure_field(
-                        page, 'struct page', '_mapcount')
+            if (self.ramdump.kernel_version <= (4, 14)):
+                mapcount = self.ramdump.read_structure_field(
+                                                        page, 'struct page', '_mapcount')
+            else:
+                mapcount = self.ramdump.read_structure_field(
+                                                        page, 'struct page', 'counters')
             inuse = mapcount & 0x0000FFFF
             total_objects = (mapcount >> 16) & 0x00007FFF
             freeobj = total_objects - inuse

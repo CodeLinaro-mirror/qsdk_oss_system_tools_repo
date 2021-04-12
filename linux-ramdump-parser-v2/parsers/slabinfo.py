@@ -91,8 +91,12 @@ class struct_member_offset(object):
                             'struct page', 'lru')
         self.page_flags = ramdump.field_offset(
                             'struct page', 'flags')
-        self.page_mapcount = ramdump.field_offset(
-                            'struct page', '_mapcount')
+        if (ramdump.kernel_version <= (4, 14)):
+            self.page_mapcount = ramdump.field_offset(
+                                'struct page', '_mapcount')
+        else:
+            self.page_mapcount = ramdump.field_offset(
+                                'struct page', 'counters')
         self.track_addrs = ramdump.field_offset(
                             'struct track', 'addrs')
         self.page_freelist = ramdump.field_offset(
