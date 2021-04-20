@@ -714,14 +714,10 @@ class RamDump():
         self.CONFIG_HIGHMEM = False
         self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = False
 
-	if not self.get_version_from_vmlinux():
-	    print_out_str('!!! Could not get the Linux version from vmlinux!')
-            print_out_str('!!! Exiting now')
-            sys.exit(1)
         if self.arm64:
-	    if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
                 self.page_offset = 0xffffffc010000000
-	    else:
+            else:
                 self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
         if page_offset is not None:
@@ -729,6 +725,39 @@ class RamDump():
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
             self.page_offset = page_offset
         self.setup_symbol_tables()
+
+	if not self.get_version_from_vmlinux():
+	    print_out_str('!!! Could not get the Linux version from vmlinux!')
+            print_out_str('!!! Exiting now')
+            sys.exit(1)
+
+        if not self.get_version():
+            print_out_str('!!! Could not get the Linux version!')
+            # self.ebi_start - Starting address of EBICS0.bin
+            ebi_filePath = self.ebi_files[0][3]
+            fd = open(ebi_filePath, 'rb')
+            file_content = fd.read()
+            lv = re.search("Linux version", file_content)
+            if lv is not None:
+                banner_addr_phys = int(hex(lv.start()), 16)
+                banner_addr_virt = self.addr_lookup('linux_banner')
+                phys_offset = banner_addr_phys - banner_addr_virt + self.ebi_start + self.page_offset
+                if self.phys_offset != phys_offset:
+                    self.phys_offset = phys_offset
+                    print_out_str('[!!!] Physical offset was changed to {0:x}'.format(self.phys_offset))
+                    print_out_str('Check for Linux banner match with changed physical offset')
+                    if not self.get_version():
+                        print_out_str('!!! Your vmlinux is probably wrong for these dumps')
+                        print_out_str('!!! Exiting now')
+                        sys.exit(1)
+                else:
+                    print_out_str('!!! Your vmlinux is probably wrong for these dumps')
+                    print_out_str('!!! Exiting now')
+                    sys.exit(1)
+            else:
+                print_out_str('!!! Linux banner is not present in dumps')
+                print_out_str('!!! Exiting now')
+                sys.exit(1)
 
         # The address of swapper_pg_dir can be used to determine
         # whether or not we're running with LPAE enabled since an
@@ -789,12 +818,6 @@ class RamDump():
                 '!!! This is a BUG in the parser and should be reported.')
             sys.exit(1)
 
-        if not self.get_version():
-            print_out_str('!!! Could not get the Linux version!')
-            print_out_str(
-                '!!! Your vmlinux is probably wrong for these dumps')
-            print_out_str('!!! Exiting now')
-            sys.exit(1)
         if not self.get_config():
             print_out_str('!!! Could not get saved configuration')
             print_out_str(
