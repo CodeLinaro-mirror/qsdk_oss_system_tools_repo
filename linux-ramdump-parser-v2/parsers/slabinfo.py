@@ -55,6 +55,13 @@ class kmem_cache(object):
         if self.inuse is None:
             return
 
+        if addr is None or g_offsetof.red_left_pad_offset is None:
+            self.red_left_pad = 0
+        else:
+            self.red_left_pad = ramdump.read_int(addr + g_offsetof.red_left_pad_offset)
+            if self.red_left_pad is None:
+                self.red_left_pad = 0
+
         self.addr = addr
         self.valid = True
 
@@ -77,6 +84,8 @@ class struct_member_offset(object):
             'struct kmem_cache', 'name')
         self.kmemcache_node = ramdump.field_offset(
             'struct kmem_cache', 'node')
+        self.red_left_pad_offset = ramdump.field_offset(
+             'struct kmem_cache', 'red_left_pad')
         self.kmemcache_cpu_page = ramdump.field_offset(
             'struct kmem_cache_cpu', 'page')
         self.kmemcpucache_cpu_slab = ramdump.field_offset(
@@ -142,9 +151,9 @@ class Slabinfo(RamParser):
     def get_track(self, ramdump, slab, obj, track_type):
         track_size = g_offsetof.sizeof_struct_track
         if slab.offset != 0:
-            p = obj + slab.offset + g_offsetof.sizeof_void_pointer
+            p = obj + slab.red_left_pad + slab.offset + g_offsetof.sizeof_void_pointer
         else:
-            p = obj + slab.inuse
+            p = obj + slab.red_left_pad + slab.inuse
         return p + track_type * track_size
 
     def print_track(self, ramdump, slab_name, slab, obj, track_type, out_file):
