@@ -2069,6 +2069,16 @@ class RamDump():
             return s[0]
 
     # returns a value guaranteed to be 64 bits
+    def read_s64(self, address, virtual=True, trace=False, cpu=None):
+        if trace:
+            print_out_str('reading {0:x}'.format(address))
+        s = self.read_string(address, '<q', virtual, trace, cpu)
+        if s is None:
+            return None
+        else:
+            return s[0]
+
+    # returns a value guaranteed to be 64 bits
     def read_u64(self, address, virtual=True, trace=False, cpu=None):
         if trace:
             print_out_str('reading {0:x}'.format(address))
