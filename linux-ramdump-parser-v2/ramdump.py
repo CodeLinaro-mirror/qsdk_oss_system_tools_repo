@@ -1949,8 +1949,11 @@ class RamDump():
         vmalloc_offset = 0x800000
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
-        if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1 and (0xffffffbffc000000 <= addr < 0xffffffc000000000)):
-            return self.unwind.get_module_name_from_addr(addr)
+        if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffc010000000):
+                return self.unwind.get_module_name_from_addr(addr)
+            elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
+                return self.unwind.get_module_name_from_addr(addr)
         elif(self.Is_Hawkeye() and self.isELF32() and check_modules == 1 and (0x7f000000 <= addr < 0x7fe00000)):
             return self.unwind.get_module_name_from_addr(addr)
         elif(self.Is_Hawkeye() and self.isELF32() and check_modules == 1 and self.is_config_defined('CONFIG_ARM_MODULE_PLTS') and (vmalloc_start <= addr < 0xff800000)):
