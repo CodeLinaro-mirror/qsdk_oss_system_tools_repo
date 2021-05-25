@@ -714,6 +714,10 @@ class RamDump():
         self.CONFIG_HIGHMEM = False
         self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = False
 
+        if not self.get_version_from_vmlinux():
+            print_out_str('!!! Could not get the Linux version from vmlinux!')
+            print_out_str('!!! Exiting now')
+            sys.exit(1)
         if self.arm64:
             if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
                 self.page_offset = 0xffffffc010000000
@@ -725,11 +729,6 @@ class RamDump():
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
             self.page_offset = page_offset
         self.setup_symbol_tables()
-
-	if not self.get_version_from_vmlinux():
-	    print_out_str('!!! Could not get the Linux version from vmlinux!')
-            print_out_str('!!! Exiting now')
-            sys.exit(1)
 
         if not self.get_version():
             print_out_str('!!! Could not get the Linux version!')
