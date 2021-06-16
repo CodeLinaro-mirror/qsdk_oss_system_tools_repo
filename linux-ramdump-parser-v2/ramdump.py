@@ -583,7 +583,7 @@ class RamDump():
 
 
         def get_module_name_from_addr(self, addr):
-    
+
             if (self.ramdump.mod_start == 0 or self.ramdump.mod_start is None):
                 print_out_str("cannot get the modules start addr");
                 return None
@@ -1391,6 +1391,19 @@ class RamDump():
             with open(file_path, 'a') as fp:
                 fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3};\n".format(timestamp, cmd, param1, param2))
 
+    def parse_struct_glinkwork_sche_cancel(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct work_queue_timelog", "timestamp")
+
+            ptr = ptr + self.sizeof("struct work_queue_timelog")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0};\n".format(timestamp))
+
     def get_glink_logging(self,  outdir):
         RPMLOG_SIZE = 256
 
@@ -1403,14 +1416,24 @@ class RamDump():
         glinkwork = self.addr_lookup('glink_work')
         glinkworkindex = self.addr_lookup('glinkworkindex')
 
+	glinkworksche = self.addr_lookup('glinkwork_schedule')
+	glinkworkscheindex = self.addr_lookup('glinkwork_sche_index')
+
+	glinkworkcancel = self.addr_lookup('glinkwork_cancel')
+	glinkworkcancelindex = self.addr_lookup('glinkwork_cancel_index')
+
         if glinkintrindex is None or glinksendindex is None or glinkworkindex is None \
-        or glinkintr is None or glinksend is None or glinkwork is None:
+        or glinkworkscheindex is None or glinkworkcancelindex is None \
+        or glinkintr is None or glinksend is None or glinkwork is None \
+        or glinkworksche is None or glinkworkcancel is None:
             print_out_str('!!! Required symbol(s) not found! Skipping..')
             return
 
         glinkintrindex = self.read_int(glinkintrindex)
         glinksendindex = self.read_int(glinksendindex)
         glinkworkindex = self.read_int(glinkworkindex)
+        glinkworkscheindex = self.read_int(glinkworkscheindex)
+        glinkworkcancelindex = self.read_int(glinkworkcancelindex)
 
         file_path = os.path.join(outdir, "glinkintr.txt")
         self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex, file_path)
@@ -1420,6 +1443,12 @@ class RamDump():
 
         file_path = os.path.join(outdir, "glinkwork.txt")
         self.parse_struct_glinkwork(glinkwork, glinkworkindex, file_path)
+
+        file_path = os.path.join(outdir, "glinkwork-schedule.txt")
+        self.parse_struct_glinkwork_sche_cancel(glinkworksche, glinkworkscheindex, file_path)
+
+        file_path = os.path.join(outdir, "glinkwork-cancel.txt")
+        self.parse_struct_glinkwork_sche_cancel(glinkworkcancel, glinkworkcancelindex, file_path)
 
     def extract_modules_from_console(self, file_path):
         print_out_str("Extracting functions and modules from Hex symbols in console log!!")
