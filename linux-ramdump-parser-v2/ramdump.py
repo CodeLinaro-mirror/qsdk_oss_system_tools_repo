@@ -1382,6 +1382,22 @@ class RamDump():
             with open(file_path, 'a') as fp:
                 fp.write("timestamp = {0};\n".format(timestamp))
 
+    def parse_struct_smp2pintr(self, ptr, length, file_path):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        print_out_str('!!! Generating {0}'.format(file_path))
+        for i in range(length):
+            timestamp = self.read_structure_field(ptr, "struct smp2p_log", "timestamp")
+            value = self.read_structure_field(ptr, "struct smp2p_log", "value")
+            last_value = self.read_structure_field(ptr, "struct smp2p_log", "last_value")
+            status = self.read_structure_field(ptr, "struct smp2p_log", "status")
+
+            ptr = ptr + self.sizeof("struct smp2p_log")
+
+            with open(file_path, 'a') as fp:
+                fp.write("timestamp = {0}; value = {1}; last_value = {2}; status = {3};\n".format(timestamp, value,  last_value, status))
+
     def get_glink_logging(self,  outdir):
         RPMLOG_SIZE = 256
 
@@ -1427,6 +1443,21 @@ class RamDump():
 
         file_path = os.path.join(outdir, "glinkwork-cancel.txt")
         self.parse_struct_glinkwork_sche_cancel(glinkworkcancel, glinkworkcancelindex, file_path)
+
+    def get_smp2p_logging(self,  outdir):
+        SMP2PLOG_SIZE = 256
+
+        smp2pintr = self.addr_lookup('smp2pintr')
+        smp2pintrindex = self.addr_lookup('smp2pintrindex')
+
+        if smp2pintrindex is None or smp2pintr is None:
+            print_out_str('!!! Required symbol(s) not found! Skipping..')
+            return
+
+        smp2pintrindex = self.read_int(smp2pintrindex)
+
+        file_path = os.path.join(outdir, "smp2pintr.txt")
+        self.parse_struct_smp2pintr(smp2pintr, smp2pintrindex, file_path)
 
     def extract_modules_from_console(self, file_path):
         print_out_str("Extracting functions and modules from Hex symbols in console log!!")

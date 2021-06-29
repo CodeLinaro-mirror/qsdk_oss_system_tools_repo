@@ -554,6 +554,10 @@ if __name__ == '__main__':
     dump.get_glink_logging(options.outdir)
     print_out_str('\n--------- end glink log parsing ---------\n')
 
+    print_out_str('\n--------- begin smp2p log parsing ---------\n')
+    dump.get_smp2p_logging(options.outdir)
+    print_out_str('\n--------- end smp2p log parsing ---------\n')
+
     if options.rddm:
         print_out_str('\n--------- begin RDDM extraction ---------\n')
         dump.get_rddm_dump(options.outdir)
