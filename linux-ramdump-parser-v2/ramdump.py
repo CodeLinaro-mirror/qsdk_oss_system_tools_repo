@@ -657,10 +657,17 @@ class RamDump():
                 self.seg_info_offset = None
                 print_out_str("ath11k module file not present")
 
+        if self.phys_offset is None:
+            self.get_hw_id()
+
         if self.Is_Hawkeye() and self.isELF32():
             self.page_offset = 0x80000000
+            if self.hw_id == 9574:
+                self.page_offset = 0x40000000
         else:
             self.page_offset = 0xc0000000
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
+
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
             self.qca_nss_drv_path = self.ko_path + "/qca-nss-drv.ko"
@@ -699,8 +706,6 @@ class RamDump():
                 return None
         if self.ebi_start == 0:
             self.ebi_start = self.ebi_files[0][1]
-        if self.phys_offset is None:
-            self.get_hw_id()
         if phys_offset is not None:
             print_out_str(
                 '[!!!] Phys offset was set to {0:x}'.format(phys_offset))
@@ -1898,11 +1903,13 @@ class RamDump():
         if board.wdog_addr is not None:
             print_out_str(
             'TZ address: {0:x}'.format(board.wdog_addr))
-        self.phys_offset = board.phys_offset
         self.tz_addr = board.wdog_addr
         self.ebi_start = board.ram_start
         self.tz_start = board.imem_start
         self.hw_id = board.board_num
+        self.phys_offset = board.phys_offset
+        if self.hw_id == 9574 and not self.arm64:
+            self.phys_offset = 0x40000000
         self.cpu_type = board.cpu
         self.imem_fname = board.imem_file_name
         return True
@@ -2257,7 +2264,7 @@ class RamDump():
             return False
 
     def Is_Hawkeye(self):
-        if (self.hw_id == 8074):
+        if (self.hw_id == 8074 or self.hw_id == 9574):
             return True
         else:
             return False

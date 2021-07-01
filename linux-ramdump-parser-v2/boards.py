@@ -242,6 +242,16 @@ class Board8074(Board):
         self.imem_start =  0x08600658
         self.wdog_addr = 0x08600658
 
+class Board9574(Board):
+    def __init__(self):
+        super(Board9574, self).__init__()
+        self.board_num = 9574
+        self.cpu = 'CORTEXA73'
+        self.ram_start = 0x40000000
+        self.phys_offset = 0x42000000
+        self.imem_start =  0x08600658
+        self.wdog_addr = 0x08600658
+
 
 boards = []
 boards.append(Board8916(socid=206, smem_addr=0xe200000))
@@ -387,6 +397,7 @@ boards.append(BoardIPQ806X(socid=203))
 boards.append(BoardIPQ806X(socid=204))
 boards.append(Board4018(socid=272, smem_addr=0x87e00000))
 boards.append(Board8074(socid=293, smem_addr=0x87e00000))
+boards.append(Board9574())
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """
