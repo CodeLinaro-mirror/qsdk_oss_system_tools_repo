@@ -666,7 +666,6 @@ class RamDump():
                 self.page_offset = 0x40000000
         else:
             self.page_offset = 0xc0000000
-        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
 
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
@@ -729,6 +728,8 @@ class RamDump():
             else:
                 self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
+
         if page_offset is not None:
             print_out_str(
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
@@ -1344,8 +1345,6 @@ class RamDump():
                     plat_env = self.read_word(plat_env)
 
                 qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
-                if qrtr_node_id is not 0:
-                    print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
                 dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 

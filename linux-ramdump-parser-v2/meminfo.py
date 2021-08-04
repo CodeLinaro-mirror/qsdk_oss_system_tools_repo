@@ -19,7 +19,7 @@ nss_modules = [ "qca_nss_dp", "qca_nss_drv", "qca_nss_qdisc" , "qca_nss_crypto",
                 "qca_nss_cfi_ocf", "ecm", "qca_ssdk", "nf_conntrack_ipv4",
                 "nf_conntrack", "x_tables", "ip_tables" ]
 wifi_modules = [ "qdf", "wifi_3_0", "qca_ol", "umac", "cfg80211",
-                 "qca_spectral" ]
+                 "qca_spectral", "mac80211", "ath11k_pci", "ath11k" ]
 
 def symbol_info_str(addr, function, offset, size, module):
     if addr is None:
