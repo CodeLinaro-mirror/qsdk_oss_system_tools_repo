@@ -2264,7 +2264,13 @@ class RamDump():
             return False
 
     def Is_Hawkeye(self):
-        if (self.hw_id == 8074 or self.hw_id == 9574):
+        if (self.hw_id == 8074 or self.Is_Alder()):
+            return True
+        else:
+            return False
+
+    def Is_Alder(self):
+        if (self.hw_id == 9574):
             return True
         else:
             return False

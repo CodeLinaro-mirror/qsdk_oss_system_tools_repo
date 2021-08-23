@@ -330,7 +330,10 @@ class CheckForRegister(RamParser):
 
     def parse_reg(self, reg_addr, reg_name):
         if(self.ramdump.isELF32()):
-            if(self.ramdump.Is_Hawkeye()):
+            if(self.ramdump.Is_Alder()):
+                c = 0x40000000
+                d = 0x50000000
+            elif(self.ramdump.Is_Hawkeye()):
                 c = 0x80000000
                 d = 0x90000000
             else:
