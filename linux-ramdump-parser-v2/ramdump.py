@@ -907,7 +907,10 @@ class RamDump():
         if len(g) < 1:
             return
 
-        module_core_addr = self.read_word(mod_list + self.module_core_offset)
+        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            module_core_addr = self.read_word(mod_list + self.module_layout_core_offset + self.module_offset)
+        else:
+            module_core_addr = self.read_word(mod_list + self.module_core_offset)
         self.gdbmi.add_sym_file(g[0], module_core_addr)
 
     def __del__(self):
