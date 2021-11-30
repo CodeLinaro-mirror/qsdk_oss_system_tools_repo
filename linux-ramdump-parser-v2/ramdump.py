@@ -1503,6 +1503,10 @@ class RamDump():
         with open(file_path, 'r') as Lines:
             for partial in Lines:
                 if (self.kallsyms_offset < 0 and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
+                    (re.search("PC is at", partial) or re.search("LR is at", partial))):
+                    continue
+
+                if (self.kallsyms_offset < 0 and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
                     (re.search(PCLRPattern, partial) or re.search(FunctionPattern, partial))):
                     x = re.findall(ptr_re, partial)
                     x0, x1 = x[0], x[1]
