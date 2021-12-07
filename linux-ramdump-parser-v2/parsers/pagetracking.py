@@ -48,9 +48,20 @@ class PageTracking(RamParser):
         self.pageflags[pageflags_table.index("PG_slab")] = 'S'
         self.pageflags[pageflags_table.index("PG_lru")] = 'L'
 
-        page_ext_flags_table = ramdump.gdbmi.get_enum_lookup_table(
-            'page_ext_flags', 5)
+        if("5, 4" in str(ramdump.kernel_version)):
+            page_ext_flags_table = ramdump.gdbmi.get_enum_lookup_table(
+                'page_ext_flags', 4)
+        else:
+            page_ext_flags_table = ramdump.gdbmi.get_enum_lookup_table(
+                'page_ext_flags', 5)
+
         PAGE_EXT_OWNER = (1 << page_ext_flags_table.index('PAGE_EXT_OWNER'))
+
+        SLAB_INDEX_START = 1
+        SLAB_INDEX_BIT  = 21
+        SLAB_OFFSET_START = 22
+        SLAB_OFFSET_BIT = 10
+        PAGE_SHIFT = 4
 
         page_ext_obj = mm_page_ext(ramdump)
 
@@ -66,6 +77,11 @@ class PageTracking(RamParser):
             'struct page_ext', 'nr_entries')
         trace_entries_offset = ramdump.field_offset(
             'struct page_ext', 'trace_entries')
+
+        pg_order_offset = ramdump.field_offset('struct page_owner', 'order')
+        handle_offset = ramdump.field_offset('struct page_owner', 'handle')
+        size_offset = ramdump.field_offset('struct stack_record', 'size')
+        entry_offset = ramdump.field_offset('struct stack_record', 'entries')
         trace_entry_size = ramdump.sizeof("void *")
 
         out_tracking = ramdump.open_file('page_tracking.txt')
@@ -78,21 +94,37 @@ class PageTracking(RamParser):
             trace_entries = []
             page_ext = page_ext_obj.lookup_page_ext(pfn)
             page_ext_flags = ramdump.read_word(page_ext + page_ext_flags_offset)
+            page_owner = page_ext + ramdump.sizeof("void *")
 
             if ((page_ext_flags & PAGE_EXT_OWNER) == PAGE_EXT_OWNER):
                 page = pfn_to_page(ramdump, pfn)
                 page_flags = ramdump.read_u32(page + page_flags_offset)
 
-                order = ramdump.read_u32(page_ext + order_offset)
-                nr_trace_entries = ramdump.read_int(page_ext + nr_entries_offset)
+                if("5, 4" in str(ramdump.kernel_version)):
+                    handle = ramdump.read_u32(page_owner + handle_offset)
+                    slab_index = (((1 << SLAB_INDEX_BIT) - 1) & (handle >> (SLAB_INDEX_START - 1)))
+                    slub_offset = (((1 << SLAB_OFFSET_BIT) - 1) & (handle >> (SLAB_OFFSET_START - 1)))
+                    offset = slub_offset << PAGE_SHIFT
+                    slab = ramdump.read_word('stack_slabs[' + str(slab_index) + ']')
+                    stack = slab +  offset
+                    order = ramdump.read_u16(page_owner + pg_order_offset)
+                    nr_entries = ramdump.read_u32(stack + size_offset)
+
+                    for i in range(0, nr_entries):
+                        entry = ramdump.read_word(stack + entry_offset + i * trace_entry_size)
+                        trace_entries.append(entry)
+                else:
+                    order = ramdump.read_u32(page_ext + order_offset)
+                    nr_trace_entries = ramdump.read_int(page_ext + nr_entries_offset)
+
+                    for i in range(0, nr_trace_entries):
+                        entry = ramdump.read_word(
+                        page_ext + trace_entries_offset + i * trace_entry_size)
+                        trace_entries.append(entry)
 
                 flags = self.get_flags_str(page_flags)
                 size = order_to_size(order)
 
-                for i in range(0, nr_trace_entries):
-                    entry = ramdump.read_word(
-                        page_ext + trace_entries_offset + i * trace_entry_size)
-                    trace_entries.append(entry)
                 page_info.insert([], range(pfn, pfn + (1 << order)), trace_entries, size, flags)
 
             pfn += (1 << order)

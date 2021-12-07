@@ -324,12 +324,31 @@ class mm_page_ext:
 
     def lookup_page_ext(self, pfn):
         if self.ramdump.arm64:
-            sec_nr_root = pfn_to_section_nr(pfn) / self.sections_per_root
-            sec_mask = pfn_to_section_nr(pfn) & (self.sections_per_root - 1)
-            return self.page_ext[sec_nr_root][sec_mask] + pfn * self.page_ext_size
+            if self.ramdump.kernel_version >= (5, 4, 0):
+                sec_num = pfn_to_section_nr(pfn)
+                sect_nr_to_root = sec_num / self.sections_per_root
+                masked = sec_num & (self.sections_per_root - 1)
+                offset = self.memsection_struct_size * (sect_nr_to_root *
+                                            self.sections_per_root + masked)
+                section_addr = nr_to_section(self.ramdump,sec_num)
+                section = self.ramdump.read_word(section_addr - offset)
+                page_ext_base = self.ramdump.read_word(section + offset +
+                                            self.page_ext_offset)
+                return page_ext_base + (self.page_ext_offset +
+                                            self.page_ext_size) * pfn
+            else:
+                sec_nr_root = pfn_to_section_nr(pfn) / self.sections_per_root
+                sec_mask = pfn_to_section_nr(pfn) & (self.sections_per_root - 1)
+                return self.page_ext[sec_nr_root][sec_mask] + pfn *           \
+                                            self.page_ext_size
         else:
-            offset = pfn - self.node_start_pfn
-            return self.page_ext + offset * self.page_ext_size
+            if self.ramdump.kernel_version >= (5, 4, 0):
+                offset = pfn - self.node_start_pfn
+                return self.page_ext + offset * (self.ramdump.sizeof('struct  \
+                                            page_owner') + self.page_ext_size)
+	    else:
+                offset = pfn - self.node_start_pfn
+                return self.page_ext + offset * self.page_ext_size
 
 
     def get_min_pfn(self):
