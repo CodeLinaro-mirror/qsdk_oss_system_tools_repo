@@ -604,7 +604,7 @@ class RamDump():
                 return None
 
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
-                 file_path, phys_offset, outdir,qtf_path, custom, cpu0_reg_path=None, cpu1_reg_path=None,
+                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
                  qtf=False, t32_host_system=None, ath11k=None):
         self.ebi_files = []
@@ -635,6 +635,11 @@ class RamDump():
         self.custom = custom
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
+
+        if scan_dump_output is not None:
+            self.scan_dump_output = scan_dump_output
+        else:
+            self.scan_dump_output = None
 
         if self.Is_Ath11k() and readelf_path is not None:
             self.ath11k_path = self.ko_path + "/ath11k.ko"
