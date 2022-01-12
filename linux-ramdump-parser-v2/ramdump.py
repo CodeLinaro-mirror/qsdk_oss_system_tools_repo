@@ -550,11 +550,11 @@ class RamDump():
             vmalloc_offset = 0x800000
             vmalloc_start = self.ramdump.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
-            if(self.ramdump.Is_Hawkeye() and self.ramdump.isELF64() and (mod_list & 0xfff0000000 != self.ramdump.mod_start_addr)):
+            if(self.ramdump.Is_Hawkeye() and self.ramdump.isELF64() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
                 return
-            elif(self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and mod_list & 0xff000000 != self.ramdump.mod_start_addr and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
+            elif(self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr) and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
                 return
-            elif(not self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and (mod_list & 0xff000000 != self.ramdump.mod_start_addr)):
+            elif(not self.ramdump.Is_Hawkeye() and self.ramdump.isELF32() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
                 return
 
             name = self.ramdump.read_cstring(mod_list + self.ramdump.mod_name_offset, 30)
@@ -883,12 +883,11 @@ class RamDump():
             self.symtab_st_info_offset = self.field_offset('struct elf32_sym', 'st_info')
             self.symtab_st_size_offset = self.field_offset('struct elf32_sym', 'st_size')
 
-        if (self.isELF64() and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
-            self.mod_start_addr = 0xc000000000
-        elif(self.isELF64()):
-            self.mod_start_addr = 0xbff0000000
-        else:
-            self.mod_start_addr = 0x7f000000
+        # Set Module start and end address
+        if not self.set_module_address():
+            print_out_str("!!! Could not set module address")
+            print_out_str("!!! Exiting now")
+            sys.exit(0)
 
         if(self.isELF64()):
             self.symtab_size = self.sizeof('struct elf64_sym')
@@ -987,6 +986,14 @@ class RamDump():
         s = config + '=y'
         return s in self.config
 
+    def get_config_data(self, config):
+        r = re.compile(config + "=(.*)")
+        data = filter(r.match, self.config)
+        if not data:
+            return None
+        else:
+            return (data[0].split(config+"="))[-1]
+
     def get_version_from_vmlinux(self):
         s = '{0} -ex "print linux_banner" -ex "quit" {1}'.format(self.gdb_path, self.vmlinux)
         f = os.popen(s)
@@ -1077,6 +1084,48 @@ class RamDump():
         else:
             print_out_str('!!! Could not lookup saved command line address')
             return False
+
+    def set_module_address(self):
+        # Set Module start address
+        if (self.isELF64()):
+            if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+                if not self.is_config_defined('CONFIG_KASAN'):
+                    config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
+                    print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
+                    if config_value is not None:
+                        self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
+                    else:
+                        print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
+                        return False
+                else:
+                    # If CONFIG_KASAN is enabled for 64 bit 5.4 kernel, Module start address extraction changes
+                    # Kasan is not supported for 32 bit profile
+                    config_value = self.get_config_data('CONFIG_KASAN_SHADOW_OFFSET')
+                    print_out_str('CONFIG_KASAN_SHADOW_OFFSET={0}'.format(config_value))
+                    if config_value is not None:
+                        self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16)) + 0x8000000
+                    else:
+                        print_out_str("CONFIG_KASAN_SHADOW_OFFSET not found!!!")
+                        return False
+            else:
+                self.mod_start_addr = self.page_offset - 0x4000000
+        else:
+            self.mod_start_addr = self.page_offset - 0x1000000
+        print_out_str('Module start address was set to 0x{0:x}'.format(self.mod_start_addr))
+
+        # Set Module end address
+        if (self.isELF64()):
+            if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+                self.mod_end_addr = self.mod_start_addr + 0x8000000
+            else:
+                self.mod_end_addr = self.page_offset
+        else:
+            if self.is_config_defined('CONFIG_HIGHMEM'):
+                self.mod_end_addr = self.page_offset - (1 << 21)
+            else:
+                self.mod_end_addr = self.page_offset
+        print_out_str('Module end address was set to 0x{0:x}'.format(self.mod_end_addr))
+        return True
 
     # From the provided device-tree node, will return the values in 'reg' field
     # as a list of strings or as tuples depending on number of groups present
@@ -1267,11 +1316,11 @@ class RamDump():
         vmalloc_offset = 0x800000
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
-        if(self.isELF64() and (mod_list & 0xfff0000000 != self.mod_start_addr)):
+        if(self.isELF64() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
             return
-        elif (self.isELF32() and self.Is_Hawkeye() and mod_list & 0xff000000 != self.mod_start_addr and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
+        elif (self.isELF32() and self.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr) and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
             return
-        elif(self.isELF32() and not self.Is_Hawkeye() and mod_list & 0xff000000 != self.mod_start_addr):
+        elif(self.isELF32() and not self.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
             return
         name = self.read_cstring(mod_list + self.mod_name_offset, 30)
         if (name is None):
