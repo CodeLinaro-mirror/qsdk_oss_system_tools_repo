@@ -1427,14 +1427,16 @@ class RamDump():
             rxhead = self.read_structure_field(ptr, "struct rpm_cmd_log", "rxhead")
             global_timer_lo = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_lo")
             global_timer_hi = self.read_structure_field(ptr, "struct rpm_cmd_log", "global_timer_hi")
+            interrupt_count = self.read_structure_field(ptr, "struct rpm_cmd_log", "glink_intr_cnt")
             hdr = self.read_structure_field(ptr, "struct rpm_cmd_log", "hdr")
             hdr = self.read_physical(self.virt_to_phys(ptr + self.field_offset("struct rpm_cmd_log", "hdr")), 60, False)
             Ahdr = ["{:02x}".format(ord(c)) for c in hdr]
 
             ptr = ptr + self.sizeof("struct rpm_cmd_log")
 
-            with open(file_path, 'a') as fp:
-                fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3}; rxtail = {4}; rxhead = {5}; global_timer_lo = {6}; global_timer_hi = {7}; hdr[60] = {8};\n".format(timestamp, cmd, param1, param2, rxtail, rxhead, global_timer_lo, global_timer_hi, Ahdr))
+            if interrupt_count is not None:
+                with open(file_path, 'a') as fp:
+                    fp.write("timestamp = {0}; cmd = {1}; param1 = {2}; param2 = {3}; rxtail = {4}; rxhead = {5}; global_timer_lo = {6}; global_timer_hi = {7}; glink_intr_cnt = {8}; hdr[60] = {9};\n".format(timestamp, cmd, param1, param2, rxtail, rxhead, global_timer_lo, global_timer_hi, interrupt_count, Ahdr))
 
     def parse_struct_glinkwork(self, ptr, length, file_path):
         if os.path.exists(file_path):
@@ -1514,8 +1516,11 @@ class RamDump():
         glinkworkscheindex = self.read_int(glinkworkscheindex)
         glinkworkcancelindex = self.read_int(glinkworkcancelindex)
 
+	# Only if we receive the expected length of data, we log the data and
+	# increment the index, else we just log the tail and head pointer and
+	# index will not be incremented. Lets dump that entry as well.
         file_path = os.path.join(outdir, "glinkintr.txt")
-        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex, file_path)
+        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex + 1, file_path)
 
         file_path = os.path.join(outdir, "glinksend.txt")
         self.parse_struct_rpm_cmd_log(glinksend, glinksendindex, file_path)
