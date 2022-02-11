@@ -126,7 +126,18 @@ def page_to_pfn_sparse(ramdump, page):
 
 
 def get_vmemmap(ramdump):
-    return ramdump.read_u64('vmemmap')
+    if ramdump.arm64:
+        va_bits_min = 38
+    else:
+        va_bits_min = 48
+    PAGE_SHIFT = 12
+    SZ_2M = 2097152
+    vmemmap_size = -(1 << va_bits_min) - (-(1 << va_bits_min + 1)) >> (PAGE_SHIFT - 6)
+    vmemmap_start = -vmemmap_size - SZ_2M
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    vmemmap = vmemmap_start - ((memstart_addr >> PAGE_SHIFT) * 64)
+    # To convert unsigned long value and with 0xffffffffffffffff
+    return vmemmap & 0xffffffffffffffff
 
 def page_to_pfn_vmemmap(ramdump, page):
     if ramdump.kernel_version >= (5, 4, 0):
@@ -218,9 +229,13 @@ def normal_lowmem_page_address(ramdump, page):
     phys = page_to_pfn(ramdump, page) << 12
     if ramdump.arm64:
         if ramdump.kernel_version >= (5, 4, 0):
-            phys_addr = phys - ramdump.read_s64('physvirt_offset')
-            if phys_addr < 0:
-             phys_addr = phys_addr +  (1 << 64)
+            va_bits_min = 38
+            memstart_addr = ramdump.read_s64('memstart_addr')
+            if (memstart_addr & 1) == 0:
+                phys_addr = (phys - memstart_addr) | (-1 << (va_bits_min + 1))
+                phys_addr = phys_addr & 0xffffffffffffffff
+	        if phys_addr < 0:
+                    phys_addr = phys_addr +  (1 << 64)
             return phys_addr
         else:
             memstart_addr = ramdump.read_s64('memstart_addr')
