@@ -665,12 +665,12 @@ class RamDump():
         if self.phys_offset is None:
             self.get_hw_id()
 
-        if self.Is_Hawkeye() and self.isELF32():
-            self.page_offset = 0x80000000
-            if self.hw_id == 9574:
-                self.page_offset = 0x40000000
+        text_addr = self.addr_lookup('_text')
+        if self.isELF32():
+            self.page_offset = text_addr & 0xF0000000
         else:
-            self.page_offset = 0xc0000000
+            self.page_offset = text_addr - 0x80000
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
 
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
@@ -728,12 +728,7 @@ class RamDump():
             print_out_str('!!! Exiting now')
             sys.exit(1)
         if self.arm64:
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
-                self.page_offset = 0xffffffc010000000
-            else:
-                self.page_offset = 0xffffffc000000000
             self.thread_size = 16384
-        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
 
         if page_offset is not None:
             print_out_str(
