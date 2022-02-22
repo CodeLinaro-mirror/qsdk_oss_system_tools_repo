@@ -1090,12 +1090,12 @@ class RamDump():
         if (self.isELF64()):
             if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
                 if not self.is_config_defined('CONFIG_KASAN'):
-                    config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
-                    print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
+                    config_value = self.get_config_data('CONFIG_ARM64_vabits_actual')
+                    print_out_str('CONFIG_ARM64_vabits_actual={0}'.format(config_value))
                     if config_value is not None:
                         self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
                     else:
-                        print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
+                        print_out_str("CONFIG_ARM64_vabits_actual not found!!!")
                         return False
                 else:
                     # If CONFIG_KASAN is enabled for 64 bit 5.4 kernel, Module start address extraction changes
@@ -1828,6 +1828,40 @@ class RamDump():
         t32_bat.close()
         print_out_str(
             '--- Created a T32 Simulator launcher (run {0}/launch_t32.bat)'.format(out_path))
+
+    def create_crash_launcher(self):
+        out_path = self.outdir
+
+        crash_script = open(out_path + '/launch_crash.sh', 'wb')
+        crash_script.write('#!/usr/bin/env bash\n')
+
+        crash_command = "/local/mnt/workspace/tools/crash/arm64/crash " + self.vmlinux
+        for ebics in self.ebi_files:
+            if ebics[3].find("EBICS") != -1:
+                crash_command += " " + ebics[3] + "@" + hex(ebics[1])
+
+        if self.arm64:
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+                vabits_actual_param = " -m vabits_actual={}"
+                kimage_voffset_param = " -m kimage_voffset={0:#x}"
+
+                crash_command += " -m phys_offset=0x40000000"
+
+                vabits_actual = self.get_config_data('CONFIG_ARM64_VA_BITS')
+                crash_command += vabits_actual_param.format(vabits_actual)
+
+                kimage_voffset_addr = self.addr_lookup('kimage_voffset')
+                kimage_voffset = self.read_word(kimage_voffset_addr, True)
+                crash_command += kimage_voffset_param.format(kimage_voffset)
+            else:
+                crash_command += " -m phys_offset=0x41000000"
+        else:
+            crash_command += " -m phys_base=0x41000000"
+
+        crash_command += "\n"
+        crash_script.write(crash_command)
+
+        crash_script.close()
 
     def create_dialog_file(self, dialog_config, files):
         dialog_config.write('NAME "File selection"\n'.encode('ascii', 'ignore'))

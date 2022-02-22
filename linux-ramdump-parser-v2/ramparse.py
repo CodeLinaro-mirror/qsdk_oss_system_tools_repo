@@ -607,3 +607,5 @@ if __name__ == '__main__':
 
     if options.t32launcher or options.everything:
         dump.create_t32_launcher()
+
+    dump.create_crash_launcher()
