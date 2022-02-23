@@ -1090,12 +1090,12 @@ class RamDump():
         if (self.isELF64()):
             if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
                 if not self.is_config_defined('CONFIG_KASAN'):
-                    config_value = self.get_config_data('CONFIG_ARM64_vabits_actual')
-                    print_out_str('CONFIG_ARM64_vabits_actual={0}'.format(config_value))
+                    config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
+                    print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
                     if config_value is not None:
                         self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
                     else:
-                        print_out_str("CONFIG_ARM64_vabits_actual not found!!!")
+                        print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
                         return False
                 else:
                     # If CONFIG_KASAN is enabled for 64 bit 5.4 kernel, Module start address extraction changes
