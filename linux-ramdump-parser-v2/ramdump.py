@@ -1316,11 +1316,11 @@ class RamDump():
         vmalloc_offset = 0x800000
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
-        if(self.isELF64() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
+        if(self.isELF64() and not (self.mod_start_addr <= mod_list and mod_list <= self.mod_end_addr)):
             return
-        elif (self.isELF32() and self.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr) and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
+        elif (self.isELF32() and self.Is_Hawkeye() and not (self.mod_start_addr <= mod_list and mod_list <= self.mod_end_addr) and not ((vmalloc_start & 0xff000000 <= mod_list & 0xff000000) and (mod_list & 0xff000000 <= 0xff000000))):
             return
-        elif(self.isELF32() and not self.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= mod_list and mod_list <= self.ramdump.mod_end_addr)):
+        elif(self.isELF32() and not self.Is_Hawkeye() and not (self.mod_start_addr <= mod_list and mod_list <= self.mod_end_addr)):
             return
         name = self.read_cstring(mod_list + self.mod_name_offset, 30)
         if (name is None):
