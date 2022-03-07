@@ -22,8 +22,10 @@ BUCKET_SIZE = 16384
 @register_parser('--memtracer', 'Display memory usage statistics', optional=True)
 class memtracer_summary(RamParser):
     stack_trace_list = []
+    stack_trace_addrs = []
     dict_modules = {}
     dictionary_trace = {}
+    dictionary_addrs = {}
     dictionary_size = {}
 
     module_updated = 0
@@ -63,7 +65,7 @@ class memtracer_summary(RamParser):
               self.update_driver_lists(modname, Alloc_size)
 
            if modname != None and offset != -1:
-              stack_trace = symbol + " + 0x" + str(offset) + " [" + modname + "]"
+              stack_trace = symbol + " + " + str(hex(offset)) + " [" + modname + "]"
 
            if stack_trace == None:
               stack_trace = "No symbol matches " + str(hex(stack_trace_addr))
@@ -75,6 +77,7 @@ class memtracer_summary(RamParser):
     def checksum(self, debug_obj, stack_trace_offset, Alloc_size):
         str_hash = ""
         self.stack_trace_list = []
+        self.stack_trace_addrs = []
 
         #pointer size in bytes
         if self.ramdump.arm64:
@@ -93,6 +96,7 @@ class memtracer_summary(RamParser):
             stack_trace = self.validate_stack(stack_trace, offset, stack_trace_addr, Alloc_size)
             if self.print_mem == 0:
                self.stack_trace_list.append(stack_trace)
+               self.stack_trace_addrs.append(stack_trace_addr)
             str_hash = str_hash + stack_trace
         self.module_updated = 0
         checksum = hashlib.md5(str_hash.encode())
@@ -109,6 +113,7 @@ class memtracer_summary(RamParser):
         else:
            self.stack_trace_list.append(1)
            self.dictionary_trace[result] = self.stack_trace_list
+           self.dictionary_addrs[result] = self.stack_trace_addrs
            self.dictionary_size[result] = Alloc_size
 
     def bytes_conversion(self, size):
@@ -122,8 +127,9 @@ class memtracer_summary(RamParser):
         return Actual_size
 
     def print_mem_usage(self, mem_usage_out):
-        format_string = '\n\n{0:60} {1:10} {2:10}'
-        format_string1 = '\n{0:60}'
+        format_string = '{0:60} {1:10} {2:10}'
+        format_addr_string = '\n[<{}>] '
+        format_string1 = '{0:60}'
         format_string4 = '{0:60}\n\n'
         format_string2 = '{0:30} {1:10}\n'
         format_string3 = '{0:30} {1:10}\n\n\n'
@@ -156,8 +162,11 @@ class memtracer_summary(RamParser):
         for i in sort_orders:
             stack_trace = self.dictionary_trace[i[0]]
             size = self.dictionary_size[i[0]]
+            stack_addr = self.dictionary_addrs[i[0]]
+            mem_usage_out.write("\n\n[<{}>] ".format(hex(stack_addr[0])))
             mem_usage_out.write(format_string.format(stack_trace[0], stack_trace[-1], size))
             for j in range(1, 8):
+                mem_usage_out.write(format_addr_string.format(hex(stack_addr[j])))
                 mem_usage_out.write(format_string1.format(stack_trace[j]))
         return
 
