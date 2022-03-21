@@ -1386,27 +1386,99 @@ class RamDump():
             plat_env_index = self.addr_lookup('plat_env_index')
 
             if plat_env_index is not None:
+                # cnss variables exist in vmlinux
                 plat_env_index = self.read_int(plat_env_index)
 
-            dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
-            dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+                dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
+                dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
 
-            for i in range(plat_env_index):
-                plat_env = self.addr_lookup("plat_env[{0}]".format(i))
-                if plat_env is not None:
-                    plat_env = self.read_word(plat_env)
+                for i in range(plat_env_index):
+                    plat_env = self.addr_lookup("plat_env[{0}]".format(i))
+                    if plat_env is not None:
+                        plat_env = self.read_word(plat_env)
 
-                qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+                    qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
 
-                dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+                    if qrtr_node_id is not 0:
+                        dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
-                if os.path.exists(dump_path):
-                    shutil.rmtree(dump_path)
+                        if os.path.exists(dump_path):
+                            shutil.rmtree(dump_path)
 
-                dump_data_vaddr = plat_env + dump_data_vaddr_off
+                        dump_data_vaddr = plat_env + dump_data_vaddr_off
 
-                self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
-                self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+            else:
+                # cnss variables migrated to ipq_cnss2.ko module
+                if self.ko_path is None:
+                    print_out_str('Provide ko module as --ko-path <KoModulePath> if plat_env exists in ipq_cnss2.ko')
+                    return
+                else:
+                    self.cnss_path = self.ko_path + "/ipq_cnss2.ko"
+                    if not os.path.isfile(self.cnss_path):
+                        print_out_str('ipq_cnss2.ko module does not exists in ko module path.')
+                        return
+
+                if self.readelf_path is None:
+                    print_out_str('readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
+                    return
+
+                self.get_module("ipq_cnss2")
+                if self.mod_list_addr is None:
+                    print_out_str('Unable to get ipq_cnss2 module address')
+                    return
+
+                self.gdbmi.close()
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.cnss_path)
+                self.gdbmi.open()
+
+                # Logic to extract cnss variable address from ko module is referred from Ath11k Implementation.
+                # GDB showing the wrong offset address for the symbol "plat_env" in 64-bit dumps.
+                # nm command always gives the correct offset address for both 32 and 64 bit dumps.
+                # Hence, changed the logic from Ath11k implementation to use only nm extracted offset address output for plat_ev
+                seg_info_nm_cmd = '{0} {1} | grep "B plat_env"'.format(self.nm_path, self.cnss_path)
+                fd_nm = os.popen(seg_info_nm_cmd)
+                ret_nm = fd_nm.read()
+                try:
+                    self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
+                except:
+                    print_out_str('Unable to get segment info address')
+                    return
+
+                self.cnss_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.cnss_path)
+                if self.cnss_gnu_linkonce_this_size is None:
+                    print_out_str('Unable to get cnss gnu linkonce size')
+                    return
+
+                plat_env_index_address = self.mod_list_addr + int (self.cnss_gnu_linkonce_this_size, 16)
+                plat_env_index = self.read_u32(plat_env_index_address)
+
+                seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.cnss_gnu_linkonce_this_size, 16)
+
+                dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
+                dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
+
+                for i in range(plat_env_index):
+                    seg_info_address = self.read_u32(seg_info)
+
+                    qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
+                    if qrtr_node_id is not 0:
+                        dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
+
+                        if os.path.exists(dump_path):
+                            shutil.rmtree(dump_path)
+
+                        dump_data_vaddr = seg_info_address + dump_data_vaddr_off
+
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+                    seg_info = seg_info + int (self.seg_info_offset, 16)
+
+                self.gdbmi.close()
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
+                self.gdbmi.open()
+
 
     def parse_struct_rpm_cmd_log(self, ptr, length, file_path):
         if os.path.exists(file_path):
