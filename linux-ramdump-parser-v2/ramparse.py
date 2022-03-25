@@ -292,6 +292,7 @@ if __name__ == '__main__':
     parser.add_option('', '--parse-rddm', action='store_true',
                       dest='rddm', help='Extract RDDM dumps')
     parser.add_option('', '--ath11k', action='store_true', dest='ath11k', help='ath11k specific parse')
+    parser.add_option('', '--ath12k', action='store_true', dest='ath12k', help='ath12k specific parse')
     parser.add_option('', '--console-log', dest='console_log', help='parse console logs to extract functions and modules')
     parser.add_option('', '--scandump-output', dest='scan_dump_output', help='Extract PC, LR and BT for DCC scan Dump')
 
@@ -475,6 +476,12 @@ if __name__ == '__main__':
             print_out_str("!!! Missing --readelf-path or --ko-path option")
             sys.exit(1)
 
+    if options.ath12k:
+        print_out_str("using ath12k module")
+        if options.readelf_path is None or  options.ko_path is None:
+            print_out_str("!!! Missing --readelf-path or --ko-path option")
+            sys.exit(1)
+
     #path to nss driver
     ko_path = options.ko_path
     readelf_path = options.readelf_path
@@ -485,7 +492,7 @@ if __name__ == '__main__':
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=options.arm64,
-                   page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k)
+                   page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k, ath12k=options.ath12k)
 
     if options.shell or options.classic_shell:
         print("Entering interactive shell mode.")

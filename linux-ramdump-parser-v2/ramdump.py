@@ -606,7 +606,7 @@ class RamDump():
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
                  file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
-                 qtf=False, t32_host_system=None, ath11k=None):
+                 qtf=False, t32_host_system=None, ath11k=None, ath12k=None):
         self.ebi_files = []
         self.phys_offset = None
         self.tz_start = 0
@@ -635,6 +635,11 @@ class RamDump():
         self.custom = custom
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
+	self.ath12k = ath12k
+
+	if self.ath11k is not None and self.ath12k is not None:
+		print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
+		return
 
         if scan_dump_output is not None:
             self.scan_dump_output = scan_dump_output
@@ -645,22 +650,35 @@ class RamDump():
             self.ath11k_path = self.ko_path + "/ath11k.ko"
             if os.path.isfile(self.ath11k_path):
                 self.ath11k_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.ath11k_path)
-                seg_info_cmd = '{0} {1} --quiet -ex "print &ath11k_coredump_seg_info" -ex "quit" '.format(self.gdb_path, self.ath11k_path)
                 seg_info_nm_cmd = '{0} {1} | grep "B ath11k_coredump_seg_info"'.format(self.nm_path, self.ath11k_path)
-                fd = os.popen(seg_info_cmd)
                 fd_nm = os.popen(seg_info_nm_cmd)
                 ret_nm = fd_nm.read()
-                ret = fd.read()
                 try:
-                    start_pos = ret.index(") 0x")
-                    self.seg_info_offset = ret[start_pos+2:].strip().split(' ')[0]
-                    self.seg_info_offset = self.seg_info_offset and ret_nm[2:].strip().split(' ')[0]
+                    self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    self.seg_info_offset = None
+                    print_out_str('Unable to get segment info address')
+                    return
             else:
                 self.ath11k_gnu_linkonce_this_size = None
                 self.seg_info_offset = None
                 print_out_str("ath11k module file not present")
+
+        if self.Is_Ath12k() and readelf_path is not None:
+            self.ath12k_path = self.ko_path + "/ath12k.ko"
+            if os.path.isfile(self.ath12k_path):
+                self.ath12k_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.ath12k_path)
+                seg_info_nm_cmd = '{0} {1} | grep "B ath12k_coredump_seg_info"'.format(self.nm_path, self.ath12k_path)
+                fd_nm = os.popen(seg_info_nm_cmd)
+                ret_nm = fd_nm.read()
+                try:
+                    self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
+                except:
+                    print_out_str('Unable to get segment info address')
+                    return
+            else:
+                self.ath12k_gnu_linkonce_this_size = None
+                self.seg_info_offset = None
+                print_out_str("ath12k module file not present")
 
         if self.phys_offset is None:
             self.get_hw_id()
@@ -1232,16 +1250,19 @@ class RamDump():
 
     def __get_section_file(self, sec_type):
         switcher = {
-                0: "paging.bin",
-                1: "fwdump.bin",
-                2: "remote.bin",
-                }
+            0: "paging.bin",
+            1: "fwdump.bin",
+            2: "remote.bin",
+            3: "paging_dyn.bin",
+            4: "remote_m3.bin",
+            5: "remote_etr.bin",
+            6: "remote_caldb.bin",
+            7: "remote_afc.bin",
+            8: "remote_mlo.bin"}
         return switcher.get(sec_type, None)
 
     def __dump_rddm_segments(self, dump_data_vaddr, dump_path, paging_header=False):
         PAGING_SEC = 0x0
-        SRAM_SEC = 0x1
-        REMOTE_SEC = 0x2
 
         dump_seg = self.read_word(dump_data_vaddr)
         if dump_seg is None:
@@ -1249,6 +1270,8 @@ class RamDump():
 
         if self.Is_Ath11k():
             seg_address = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "addr")
+        elif self.Is_Ath12k():
+            seg_address = self.read_structure_field(dump_seg, "struct ath12k_dump_segment", "addr")
         else:
             seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
         if seg_address is 0 or seg_address is None:
@@ -1276,6 +1299,11 @@ class RamDump():
                 seg_type = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "type")
                 next_dump_seg = dump_seg + self.sizeof("struct ath11k_dump_segment")
                 next_seg_address = self.read_structure_field(next_dump_seg, "struct ath11k_dump_segment", "addr")
+            elif self.Is_Ath12k():
+                seg_size = self.read_structure_field(dump_seg, "struct ath12k_dump_segment", "len")
+                seg_type = self.read_structure_field(dump_seg, "struct ath12k_dump_segment", "type")
+                next_dump_seg = dump_seg + self.sizeof("struct ath12k_dump_segment")
+                next_seg_address = self.read_structure_field(next_dump_seg, "struct ath12k_dump_segment", "addr")
             else:
                 seg_size = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "size")
                 seg_type = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "type")
@@ -1373,6 +1401,47 @@ class RamDump():
                     shutil.rmtree(dump_path)
 
                 dump_seg_off = self.field_offset("struct ath11k_coredump_segment_info", "seg")
+                dump_seg = seg_info + dump_seg_off
+
+                self.__dump_rddm_segments(dump_seg, dump_path, True)
+                self.__dump_rddm_segments(dump_seg, dump_path, False)
+
+            self.gdbmi.close()
+
+            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
+            self.gdbmi.open()
+        elif self.Is_Ath12k():
+            self.get_module("ath12k")
+
+            if self.mod_list_addr is None:
+                print_out_str('Unable to get ath11k module address')
+                return
+
+            if self.ath12k_gnu_linkonce_this_size is None:
+                print_out_str('Unable to get gnu linkonce size')
+                return
+
+            if self.seg_info_offset is None:
+                print_out_str('Unable to get segment info address')
+                return
+
+            seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
+
+            self.gdbmi.close()
+
+            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath12k_path)
+            self.gdbmi.open()
+
+            qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
+            if qrtr_node_id is not 0:
+                print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+
+                dump_path = os.path.join(outdir, "rddm_dump")
+
+                if os.path.exists(dump_path):
+                    shutil.rmtree(dump_path)
+
+                dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
                 dump_seg = seg_info + dump_seg_off
 
                 self.__dump_rddm_segments(dump_seg, dump_path, True)
@@ -2622,6 +2691,12 @@ class RamDump():
 
     def Is_Ath11k(self):
         if self.ath11k is not None:
+            return True
+        else:
+            return False
+
+    def Is_Ath12k(self):
+        if self.ath12k is not None:
             return True
         else:
             return False

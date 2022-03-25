@@ -55,6 +55,8 @@ in device-tree
 
 --ath11k : use the tool feature on ath11k modules. 
 
+--ath12k : use the tool feature on ath12k modules.
+
 The list of features parsed is constantly growing. Please use --help option
 to see the full list of features that can be parsed.
 
