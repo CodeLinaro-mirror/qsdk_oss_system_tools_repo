@@ -1000,14 +1000,14 @@ class RamDump():
             return (data[0].split(config+"="))[-1]
 
     def get_version_from_vmlinux(self):
-        s = '{0} -ex "print linux_banner" -ex "quit" {1}'.format(self.gdb_path, self.vmlinux)
+        s = '{0} -ex "printf \\"%s\\", linux_banner" -ex "quit" {1}'.format(self.gdb_path, self.vmlinux)
         f = os.popen(s)
         now = f.read()
         try:
                 start_pos = now.index("Linux version")
                 self.banner = now[start_pos:]
                 self.flen = len(self.banner)
-                self.flen = self.flen - 4
+                self.flen = self.flen - 1
         except:
                 print('not able to find linux banner')
 		return False
@@ -1029,7 +1029,7 @@ class RamDump():
         if banner_addr is not None:
             # Don't try virt to phys yet, compute manually
             banner_addr = banner_addr - self.page_offset + self.phys_offset
-            b = self.read_cstring(banner_addr, 256, False)
+            b = self.read_cstring(banner_addr, self.flen, False)
             if b is None:
                 print_out_str('!!! Could not read banner address!')
                 return False
