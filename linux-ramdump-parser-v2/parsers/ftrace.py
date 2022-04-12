@@ -62,13 +62,13 @@ class Ftrace(RamParser):
         self.srd_r_pa = self.ramdump.read_word(srd + self.r_pa_offset)
         print_out_str ('srd_r_pa = 0x{0:X}'.format(self.srd_r_pa))
 
-        self.srd_ncpu = self.ramdump.read_word(srd + self.ncpu_offset)
+        self.srd_ncpu = self.ramdump.read_int(srd + self.ncpu_offset)
         print_out_str ('srd_ncpu = 0x{0:X}'.format(self.srd_ncpu))
 
         srd_cpu_array = srd + self.cpu_offset #cpu is an array
         self.ring_buffer_index = []
         for i in range(0, self.srd_ncpu):
-            index = self.ramdump.read_word(srd_cpu_array)
+            index = self.ramdump.read_int(srd_cpu_array)
             index %= 8192
             print_out_str ('trace info index for core {0} = {1}'.format(i, index))
             self.ring_buffer_index.append(index)
@@ -78,12 +78,13 @@ class Ftrace(RamParser):
     def readtrace(self, pa, corenum):
         if (self.srd_r_pa is None):
             return;
-        ftrace_size  = 0x7FFF # 32768/4
-        start = ( ftrace_size + 1 ) * corenum
-        end = start + ftrace_size
+        step = self.ramdump.sizeof("void *")
+        ftrace_size  = 8192 * step # 32768/4
+        start = ftrace_size * corenum
+        end = start + ftrace_size - 1
         array = []
         temp = []
-        for i in range(start, end, 4):
+        for i in range(start, end, step):
             symaddr = self.ramdump.read_word(pa+i, False)
             array.append(symaddr)
         #rearrange array
