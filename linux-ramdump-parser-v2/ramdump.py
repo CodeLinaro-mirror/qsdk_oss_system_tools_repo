@@ -1583,11 +1583,8 @@ class RamDump():
         glinkworkscheindex = self.read_int(glinkworkscheindex)
         glinkworkcancelindex = self.read_int(glinkworkcancelindex)
 
-	# Only if we receive the expected length of data, we log the data and
-	# increment the index, else we just log the tail and head pointer and
-	# index will not be incremented. Lets dump that entry as well.
         file_path = os.path.join(outdir, "glinkintr.txt")
-        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex + 1, file_path)
+        self.parse_struct_rpm_cmd_log(glinkintr, glinkintrindex, file_path)
 
         file_path = os.path.join(outdir, "glinksend.txt")
         self.parse_struct_rpm_cmd_log(glinksend, glinksendindex, file_path)
