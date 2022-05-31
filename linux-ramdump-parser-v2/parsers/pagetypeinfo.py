@@ -66,7 +66,7 @@ class Pagetypeinfo(RamParser):
                 total_type_pages = total_type_pages + pg_count * (2 ** order)
                 total_orders[order] += pg_count
             print_out_str(pageinfo + nums +
-                          ' = {0} MB {1} pages'.format(total_type_bytes / (1024 * 1024), total_type_pages))
+                    ' = {0} MB {1} pages'.format(total_type_bytes // (1024 * 1024), total_type_pages))
             total_bytes = total_bytes + total_type_bytes
             total_pages = total_pages + total_type_pages
         for order in range(0, 11):
@@ -74,7 +74,7 @@ class Pagetypeinfo(RamParser):
         print_out_str(total_orders_str)
 
         print_out_str('Approximate total for zone {0}: {1} MB, {2} pages\n'.format(
-            zname, total_bytes / (1024 * 1024), total_pages))
+            zname, total_bytes // (1024 * 1024), total_pages))
         if is_corrupt:
             print_out_str(
                 '!!! Numbers may not be accurate due to list corruption!')

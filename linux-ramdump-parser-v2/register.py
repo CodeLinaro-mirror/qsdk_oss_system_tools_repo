@@ -89,7 +89,7 @@ class Register(object):
         # these again and would then recurse inifitely)
         object.__setattr__(self, 'value', value)
         object.__setattr__(self, '_regs', {})
-        for (k, v) in kwargs.iteritems():
+        for (k, v) in kwargs.items():
             self.add_field(k, v)
 
     def add_field(self, field, bitrange):
@@ -105,7 +105,7 @@ class Register(object):
         object.__setattr__(self, 'value', 0)
 
     def __dir__(self):
-        return self.__dict__.keys() + self._regs.keys()
+        return list(self.__dict__.keys()) + list(self._regs.keys())
 
     def __getattr__(self, name):
         if name not in self._regs:

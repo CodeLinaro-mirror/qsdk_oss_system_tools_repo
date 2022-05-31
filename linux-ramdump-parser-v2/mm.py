@@ -234,7 +234,7 @@ def normal_lowmem_page_address(ramdump, page):
             if (memstart_addr & 1) == 0:
                 phys_addr = (phys - memstart_addr) | (-1 << (va_bits_min + 1))
                 phys_addr = phys_addr & 0xffffffffffffffff
-	        if phys_addr < 0:
+                if phys_addr < 0:
                     phys_addr = phys_addr +  (1 << 64)
             return phys_addr
         else:
@@ -346,7 +346,7 @@ class mm_page_ext:
                 offset = pfn - self.node_start_pfn
                 return self.page_ext + offset * (self.ramdump.sizeof('struct  \
                                             page_owner') + self.page_ext_size)
-	    else:
+            else:
                 offset = pfn - self.node_start_pfn
                 return self.page_ext + offset * self.page_ext_size
 

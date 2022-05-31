@@ -76,7 +76,7 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
     task_flag = 0
     if offset_cpu is None:
         offset_cpu = ramdump.field_offset('struct task_struct', 'cpu')
-	task_flag = 1
+        task_flag = 1
     offset_preempt_count = ramdump.field_offset('struct thread_info', 'preempt_count')
     orig_thread_group = thread_group
     first = 0
@@ -87,10 +87,10 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
         next_thread_pid = next_thread_start + offset_pid
         next_thread_stack = next_thread_start + offset_stack
         next_thread_state = next_thread_start + offset_state
-	next_thread_cpu = next_thread_start + offset_cpu
+        next_thread_cpu = next_thread_start + offset_cpu
         next_thread_exit_state = next_thread_start + offset_exit_state
         thread_task_name = cleanupString(
-            ramdump.read_cstring(next_thread_comm, 16))
+        ramdump.read_cstring(next_thread_comm, 16))
         if thread_task_name is None:
             return
         thread_task_pid = ramdump.read_int(next_thread_pid)
@@ -108,13 +108,13 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
         threadinfo = addr_stack
         if threadinfo is None:
             return
-	task_cpu = ''
-	if task_flag == 0:
-	    task_cpu = ramdump.read_int(threadinfo + offset_cpu)
-	else:
-	    task_cpu = ramdump.read_int(next_thread_cpu)
-	if task_cpu is None:
-	    return
+        task_cpu = ''
+        if task_flag == 0:
+            task_cpu = ramdump.read_int(threadinfo + offset_cpu)
+        else:
+            task_cpu = ramdump.read_int(next_thread_cpu)
+        if task_cpu is None:
+            return
 
         if not check_for_panic:
             preempt_cnt = ramdump.read_int(threadinfo + offset_preempt_count)
@@ -267,7 +267,7 @@ class CheckForDeadlock(RamParser):
             return None
         if pattern is not None:
             ver_str = None
-            fhandle = open(fname, 'rb')
+            fhandle = open(fname, 'r')
 
             for line in fhandle:
                 found=pattern.findall(line)
@@ -302,12 +302,12 @@ class CheckForRegister(RamParser):
         pattern=re.compile(r'.* pc : *')
         if pattern is None:
             return None
-        fh = open(fname, 'rb')
+        fh = open(fname, 'r')
         if fh is None:
            return None
 
         for line in fh:
-            if internal_error is 1:
+            if internal_error == 1:
                 temp_list.append(line)
                 continue
             if re.match('(.*)Internal error:(.*)',line):

@@ -44,7 +44,7 @@ class CPR(RamParser):
         cpr_out.write("======================================================\n")
         cpr_out.write("	CPR Register		Value\n")
         cpr_out.write("======================================================\n")
-        for i in xrange(cpr_regs.count):
+        for i in range(cpr_regs.count):
             cpr_out.write("	  0x{0:x}		0x{1:x}\n".format(cpr_regs.cpr_regs[i][0], cpr_regs.cpr_regs[i][1]))
         cpr_out.write("======================================================\n")
 
@@ -69,12 +69,12 @@ class CPRRegDump():
         self.start_addr = ramdump.read_u64(self.cpr_dump_addr + 40, False)
         self.count = ramdump.read_u32(self.cpr_dump_addr + 56, False)
 
-	regs_start_addr = self.start_addr
-	reg_offset = 0x4
+        regs_start_addr = self.start_addr
+        reg_offset = 0x4
         value_offset = 0x8
         next_reg_offset = 0x8
         curr_addr = regs_start_addr
-        for i in xrange(self.count):
+        for i in range(self.count):
             addr_validity = ramdump.check_addr_validity(curr_addr + reg_offset, ramdump.ebi_files)
             if not addr_validity:
                 return 0

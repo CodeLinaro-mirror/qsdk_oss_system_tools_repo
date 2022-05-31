@@ -266,7 +266,7 @@ class RunQueues(RamParser):
         else:
             pattern=re.compile(r'.*r.s r13_svc*')
         ver_str = None
-        fhandle = open(reg_fname, 'rb')
+        fhandle = open(reg_fname, 'r')
         for line in fhandle:
             found=pattern.findall(line)
             for a in found:
@@ -335,13 +335,13 @@ class RunQueues(RamParser):
             print_out_str('RT {0} process is pending'.format(rt_nr_running))
             self.print_rt_state(rt_rq_addr)
 
-            if i is 0:
+            if i == 0:
                 if svc_r13_core0 is not None:
                     print_out_str('\n Stack dump back trace for core0\n')
                     self.stack_dump_trace(svc_r13_core0)
                 else:
                     self.print_latest_callstack_maybe(curr_addr)
-            if i is 1:
+            if i == 1:
                 if svc_r13_core1 is not None:
                     print_out_str('\n Stack dump back trace for core1\n')
                     self.stack_dump_trace(svc_r13_core1)
@@ -349,14 +349,14 @@ class RunQueues(RamParser):
                     self.print_latest_callstack_maybe(curr_addr)
 
             if self.ramdump.Is_Dakota() or self.ramdump.Is_Hawkeye():
-                if i is 2:
+                if i == 2:
                     if svc_r13_core2 is not None:
                         print_out_str('\n Stack dump back trace for core2\n')
                         self.stack_dump_trace(svc_r13_core2)
                     else:
                         self.print_latest_callstack_maybe(curr_addr)
 
-                if i is 3:
+                if i == 3:
                     if svc_r13_core3 is not None:
                         print_out_str('\n Stack dump back trace for core3\n')
                         self.stack_dump_trace(svc_r13_core3)

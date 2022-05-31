@@ -125,7 +125,7 @@ class PageTracking(RamParser):
                 flags = self.get_flags_str(page_flags)
                 size = order_to_size(order)
 
-                page_info.insert([], range(pfn, pfn + (1 << order)), trace_entries, size, flags)
+                page_info.insert([], list(range(pfn, pfn + (1 << order))), trace_entries, size, flags)
 
             pfn += (1 << order)
 

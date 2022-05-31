@@ -108,7 +108,7 @@ unchanged.
 def create_collapsed_mapping(flat_mapping):
     collapsed_mapping = {}
 
-    if not len(flat_mapping.keys()):
+    if not len(list(flat_mapping.keys())):
         return collapsed_mapping
 
     virt_addrs = sorted(flat_mapping.keys())

@@ -449,7 +449,7 @@ class RamDump():
                     print_out_str(pstring)
 
                 urc = self.unwind_frame(frame, trace)
-                if urc < 0:
+                if urc is None or urc < 0:
                     break
 
         def arm_symbol_mapping(self, sym):
@@ -635,11 +635,11 @@ class RamDump():
         self.custom = custom
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
-	self.ath12k = ath12k
+        self.ath12k = ath12k
 
-	if self.ath11k is not None and self.ath12k is not None:
-		print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
-		return
+        if self.ath11k is not None and self.ath12k is not None:
+            print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
+            return
 
         if scan_dump_output is not None:
             self.scan_dump_output = scan_dump_output
@@ -760,7 +760,7 @@ class RamDump():
             ebi_filePath = self.ebi_files[0][3]
             fd = open(ebi_filePath, 'rb')
             file_content = fd.read()
-            lv = re.search("Linux version", file_content)
+            lv = re.search("Linux version".encode('ascii', 'ignore'), file_content)
             if lv is not None:
                 banner_addr_phys = int(hex(lv.start()), 16)
                 banner_addr_virt = self.addr_lookup('linux_banner')
@@ -933,7 +933,7 @@ class RamDump():
     def __del__(self):
         self.gdbmi.close()
 
-    def open_file(self, file_name, mode='wb'):
+    def open_file(self, file_name, mode='w'):
         file_path = os.path.join(self.outdir, file_name)
         f = None
         try:
@@ -1006,7 +1006,7 @@ class RamDump():
 
     def get_config_data(self, config):
         r = re.compile(config + "=(.*)")
-        data = filter(r.match, self.config)
+        data = list(filter(r.match, self.config))
         if not data:
             return None
         else:
@@ -1023,9 +1023,9 @@ class RamDump():
                 self.flen = self.flen - 1
         except:
                 print('not able to find linux banner')
-		return False
+                return False
 
-	v = re.search('Linux version (\d{0,2}\.\d{0,2}\.\d{0,3})', self.banner)
+        v = re.search('Linux version (\d{0,2}\.\d{0,2}\.\d{0,3})', self.banner)
         if v is None:
             print_out_str('!!! Could not match version! {0}'.format(self.banner))
             return False
@@ -1188,12 +1188,12 @@ class RamDump():
             fd.seek(offset)
             dump = fd.read(etr_size)
             #Look for dump Magic, 0xdeadbeef in Little Endian
-	    head_pos = dump.find(b'\xef\xbe\xad\xde')
+            head_pos = dump.find(b'\xef\xbe\xad\xde')
             if head_pos < 0:
                 print_out_str("-- Magic '0xdeadbeef' is not found in range")
                 return None
 
-	    fd.seek(head_pos + offset)
+            fd.seek(head_pos + offset)
             magic, status, read_ptr, write_ptr = struct.unpack("<IIII", fd.read(16))
 
             etr_file_path = os.path.join(self.outdir, "q6_etr.bin")
@@ -1274,7 +1274,7 @@ class RamDump():
             seg_address = self.read_structure_field(dump_seg, "struct ath12k_dump_segment", "addr")
         else:
             seg_address = self.read_structure_field(dump_seg, "struct cnss_dump_seg", "address")
-        if seg_address is 0 or seg_address is None:
+        if seg_address is None or seg_address == 0:
             return
 
         if not os.path.exists(dump_path):
@@ -1285,7 +1285,7 @@ class RamDump():
             seg_file = self.__get_section_file(PAGING_SEC)
             seg_file = os.path.join(dump_path, seg_file)
             with open(seg_file, 'wb') as fp:
-                fp.write("\0" * 512)
+                fp.write(b'"\0" * 512')
                 offset = 0
                 fp.seek(offset)
                 fp.write(struct.pack('<Q', 1))
@@ -1293,7 +1293,7 @@ class RamDump():
 
         index = 0
         paging_seg_count = 0
-        while seg_address is not 0 and seg_address is not None:
+        while seg_address != 0 and seg_address is not None:
             if self.Is_Ath11k():
                 seg_size = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "len")
                 seg_type = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "type")
@@ -1392,7 +1392,7 @@ class RamDump():
             self.gdbmi.open()
 
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
-            if qrtr_node_id is not 0:
+            if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
                 dump_path = os.path.join(outdir, "rddm_dump")
@@ -1433,7 +1433,7 @@ class RamDump():
             self.gdbmi.open()
 
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
-            if qrtr_node_id is not 0:
+            if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
                 dump_path = os.path.join(outdir, "rddm_dump")
@@ -1468,7 +1468,7 @@ class RamDump():
 
                     qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
 
-                    if qrtr_node_id is not 0:
+                    if qrtr_node_id != 0:
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1532,7 +1532,7 @@ class RamDump():
                     seg_info_address = self.read_u32(seg_info)
 
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
-                    if qrtr_node_id is not 0:
+                    if qrtr_node_id != 0:
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1566,7 +1566,7 @@ class RamDump():
             interrupt_count = self.read_structure_field(ptr, "struct rpm_cmd_log", "glink_intr_cnt")
             hdr = self.read_structure_field(ptr, "struct rpm_cmd_log", "hdr")
             hdr = self.read_physical(self.virt_to_phys(ptr + self.field_offset("struct rpm_cmd_log", "hdr")), 60, False)
-            Ahdr = ["{:02x}".format(ord(c)) for c in hdr]
+            Ahdr = ["{:02x}".format(c) for c in hdr]
 
             ptr = ptr + self.sizeof("struct rpm_cmd_log")
 
@@ -1633,11 +1633,11 @@ class RamDump():
         glinkwork = self.addr_lookup('glink_work')
         glinkworkindex = self.addr_lookup('glinkworkindex')
 
-	glinkworksche = self.addr_lookup('glinkwork_schedule')
-	glinkworkscheindex = self.addr_lookup('glinkwork_sche_index')
+        glinkworksche = self.addr_lookup('glinkwork_schedule')
+        glinkworkscheindex = self.addr_lookup('glinkwork_sche_index')
 
-	glinkworkcancel = self.addr_lookup('glinkwork_cancel')
-	glinkworkcancelindex = self.addr_lookup('glinkwork_cancel_index')
+        glinkworkcancel = self.addr_lookup('glinkwork_cancel')
+        glinkworkcancelindex = self.addr_lookup('glinkwork_cancel_index')
 
         if glinkintrindex is None or glinksendindex is None or glinkworkindex is None \
         or glinkworkscheindex is None or glinkworkcancelindex is None \
@@ -1798,7 +1798,7 @@ class RamDump():
 
         t32_host_system = self.t32_host_system or platform.system()
 
-        launch_config = open(out_path + '/t32_config.t32', 'wb')
+        launch_config = open(out_path + '/t32_config.t32', 'w')
         launch_config.write('OS=\n')
         launch_config.write('ID=T32_1000002\n')
 
@@ -1838,19 +1838,19 @@ class RamDump():
             ebi_name = os.path.basename(ram[3])
             local = local + '&' + ebi_name.split('.')[0] + 'File '
         local = local + '&ELFFile'
-        startup_script.write('{0}\n'.format(local))
+        startup_script.write('{0}\n'.format(local).encode('ascii', 'ignore'))
         entry = 'ENTRY '
         for ram in self.ebi_files:
             ebi_name = os.path.basename(ram[3])
             entry = entry + '&' + ebi_name.split('.')[0] + 'File '
         entry = entry + '&ELFFile'
-        startup_script.write('{0}\n'.format(entry))
+        startup_script.write('{0}\n'.format(entry).encode('ascii', 'ignore'))
         check = 'IF '
         for ram in self.ebi_files:
             ebi_name = os.path.basename(ram[3])
             check = check + 'STRing.ComPare("&' + ebi_name.split('.')[0] + 'File", "")||'
         check = check + 'STRing.ComPare("&ELFFile", "")'
-        startup_script.write('{0}\n'.format(check))
+        startup_script.write('{0}\n'.format(check).encode('ascii', 'ignore'))
         startup_script.write('(\n'.encode('ascii', 'ignore'))
         startup_script.write('    print "Choose the ELF & Dump files in dialog box."\n'.encode('ascii', 'ignore'))
         startup_script.write('    DIALOG.view file_select.dlg\n'.encode('ascii', 'ignore'))
@@ -1859,16 +1859,16 @@ class RamDump():
         for ram in self.ebi_files:
             ebi_path = os.path.basename(ram[3])
             ebi_file = ebi_path.split('.')[0] + 'File'
-            startup_script.write('    DIALOG.SET {0} "{1}"\n'.format(ebi_file, ebi_path))
+            startup_script.write('    DIALOG.SET {0} "{1}"\n'.format(ebi_file, ebi_path).encode('ascii', 'ignore'))
         vmlinux_name = os.path.basename(self.vmlinux)
-        startup_script.write('    DIALOG.SET {0} "{1}"\n'.format('ELFFile', vmlinux_name))
-        startup_script.write('    STOP\n')
+        startup_script.write('    DIALOG.SET {0} "{1}"\n'.format('ELFFile', vmlinux_name).encode('ascii', 'ignore'))
+        startup_script.write('    STOP\n'.encode('ascii', 'ignore'))
 
         for ram in self.ebi_files:
             ebi_path = os.path.basename(ram[3])
             ebi_file = ebi_path.split('.')[0] + 'File'
-            startup_script.write('    &{0}=DIALOG.STRing({1})\n'.format(ebi_file, ebi_file))
-        startup_script.write('    &{0}=DIALOG.STRing({1})\n'.format('ELFFile', 'ELFFile'))
+            startup_script.write('    &{0}=DIALOG.STRing({1})\n'.format(ebi_file, ebi_file).encode('ascii', 'ignore'))
+        startup_script.write('    &{0}=DIALOG.STRing({1})\n'.format('ELFFile', 'ELFFile').encode('ascii', 'ignore'))
 
         dialog_config = open(out_path + '/file_select.dlg', 'wb')
         files = []
@@ -1970,7 +1970,7 @@ class RamDump():
     def create_crash_launcher(self):
         out_path = self.outdir
 
-        crash_script = open(out_path + '/launch_crash.sh', 'wb')
+        crash_script = open(out_path + '/launch_crash.sh', 'w')
         crash_script.write('#!/usr/bin/env bash\n')
 
         crash_command = "/local/mnt/workspace/tools/crash/arm64/crash " + self.vmlinux
@@ -2016,25 +2016,25 @@ class RamDump():
         for req_file in files:
             obj_pos = text_obj
             dialog_config.write('\tPOS {0}. {1}. {2}. {3}.\n'.
-                format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]))
-            dialog_config.write('\tTEXT "Select {0} FILE"\n'.format(req_file))
-            dialog_config.write('{0}File:  EDIT "" ""\n'.format(req_file))
+                format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]).encode('ascii', 'ignore'))
+            dialog_config.write('\tTEXT "Select {0} FILE"\n'.format(req_file).encode('ascii', 'ignore'))
+            dialog_config.write('{0}File:  EDIT "" ""\n'.format(req_file).encode('ascii', 'ignore'))
             obj_pos = browse_obj
             dialog_config.write('\tPOS {0}. {1}. {2}. {3}.\n'.
-                format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]))
-            dialog_config.write('\tBUTTON "Browse"\n')
-            dialog_config.write('\t(\n')
-            dialog_config.write('\t\tDIALOG.SetFile {0}File .\*\n'.format(req_file))
-            dialog_config.write('\t)\n\n')
+                format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]).encode('ascii', 'ignore'))
+            dialog_config.write('\tBUTTON "Browse"\n'.encode('ascii', 'ignore'))
+            dialog_config.write('\t(\n'.encode('ascii', 'ignore'))
+            dialog_config.write('\t\tDIALOG.SetFile {0}File .\*\n'.format(req_file).encode('ascii', 'ignore'))
+            dialog_config.write('\t)\n\n'.encode('ascii', 'ignore'))
             text_obj[1] = text_obj[1] + 2
             browse_obj[1] = browse_obj[1] + 2
 
         # Place OK button at the position of next BROWSE object
         obj_pos = browse_obj
         dialog_config.write('\tPOS {0}. {1}. {2}. {3}.\n'.
-            format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]))
-        dialog_config.write('\tDEFBUTTON "OK" "CONTinue"')
-        dialog_config.write('\n')
+            format(obj_pos[0], obj_pos[1], obj_pos[2], obj_pos[3]).encode('ascii', 'ignore'))
+        dialog_config.write('\tDEFBUTTON "OK" "CONTinue"'.encode('ascii', 'ignore'))
+        dialog_config.write('\n'.encode('ascii', 'ignore'))
 
     def read_tz_offset(self):
         if self.tz_addr == 0:
@@ -2149,7 +2149,7 @@ class RamDump():
         return True
 
     def virt_to_phys(self, virt):
-        if isinstance(virt, basestring):
+        if isinstance(virt, str):
             virt = self.addr_lookup(virt)
             if virt is None:
                 return
@@ -2229,7 +2229,7 @@ class RamDump():
             pass
 
     def unwind_lookup(self, addr, symbol_size=1, check_modules=1):
-        if self.stackinfo_cache.has_key(addr):
+        if addr in self.stackinfo_cache:
             stackinfo = self.stackinfo_cache[addr]
             if symbol_size == 0 and stackinfo is not None:
                 return (stackinfo[0], stackinfo[1], stackinfo[2])
@@ -2293,10 +2293,10 @@ class RamDump():
         ebi = (-1, -1, -1)
         for a in self.ebi_files:
             fd, start, end, path = a
-            if addr >= start and addr <= end:
+            if addr is not None and addr >= start and addr <= end:
                 ebi = a
                 break
-        if ebi[0] is -1:
+        if ebi[0] == -1:
             if trace:
                 if addr is None:
                     print_out_str('None was passed to read_physical')
@@ -2435,7 +2435,7 @@ class RamDump():
 
     def deference_variable(self, virt_or_name):
         """deference if the input is not a pointer."""
-        if not isinstance(virt_or_name, basestring):
+        if not isinstance(virt_or_name, str):
             return virt_or_name
         return self.addr_lookup(virt_or_name)
 
@@ -2550,7 +2550,7 @@ class RamDump():
            start_pos = gdbstr.index("gdb")
 
         except:
-           print "gdb not found in gdbpath"
+           print("gdb not found in gdbpath")
            return None
 
         a2l = gdbstr[0:start_pos]
@@ -2616,12 +2616,12 @@ class RamDump():
              c0b0015b: 0000 0000 0000 0000 0000 0000 0000 0000  ................
 
         """
-        import StringIO
-        sio = StringIO.StringIO()
+        import io
+        sio = io.StringIO()
         parser_util.xxd(
             address,
             [self.read_byte(address + i, virtual=virtual) or 0
-             for i in xrange(length)],
+             for i in range(length)],
             file_object=sio)
         ret = sio.getvalue()
         sio.close()
@@ -2651,7 +2651,7 @@ class RamDump():
             return int((b[maxcpus + 8:].partition(' '))[0])
 
     def iter_cpus(self):
-        return xrange(self.get_num_cpus())
+        return range(self.get_num_cpus())
 
     def thread_saved_field_common_32(self, task, reg_offset):
         thread_info = self.read_word(task + self.field_offset('struct task_struct', 'stack'))

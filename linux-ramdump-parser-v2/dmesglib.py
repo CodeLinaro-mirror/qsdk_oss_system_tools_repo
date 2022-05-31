@@ -145,12 +145,12 @@ class DmesgLib(object):
                         #	LR is at osif_delete_vap_wait_and_free+0x278/0x3a0 [umac]
                         #	pc : [<df50ea24>]    lr : [<df50ea24>]    psr: 60000013
                         f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
-                            timestamp / 1000000000, (timestamp % 1000000000) / 1000, "PC is at " + str(x0))
-                        self.outfile.write(f)
+                            timestamp // 1000000000, (timestamp % 1000000000) // 1000, "PC is at " + str(x0))
+                        self.outfile.write(f.encode('ascii', 'ignore'))
                         dmesg_out.write(f)
                         f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
-                            timestamp / 1000000000, (timestamp % 1000000000) / 1000, "LR is at " + str(x1))
-                        self.outfile.write(f)
+                            timestamp // 1000000000, (timestamp % 1000000000) // 1000, "LR is at " + str(x1))
+                        self.outfile.write(f.encode('ascii', 'ignore'))
                         dmesg_out.write(f)
                         # don't modify 'partial', it has to get printed AS IS
                     else:
@@ -164,9 +164,9 @@ class DmesgLib(object):
                             partial = "[<" + x[0] + ">] (" + x0 + ") from [<" + x[1] + ">] (" + x1 + ")"
 
                 f = '[{0:>5}.{1:0>6d}] {2}\n'.format(
-                    timestamp / 1000000000, (timestamp % 1000000000) / 1000, partial)
+                    timestamp // 1000000000, (timestamp % 1000000000) // 1000, partial)
 
-                self.outfile.write(f)
+                self.outfile.write(f.encode('ascii', 'ignore'))
                 dmesg_out.write(f)
             curr_idx = self.log_next(curr_idx, logbuf_addr)
         dmesg_out.close()

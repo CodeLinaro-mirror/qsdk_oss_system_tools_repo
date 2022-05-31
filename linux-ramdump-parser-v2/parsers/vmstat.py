@@ -17,7 +17,7 @@ from parser_util import register_parser, RamParser
 class ZoneInfo(RamParser):
 
     def print_atomic_long_counters(self, stats_array, addr, num):
-        for i in xrange(0, num):
+        for i in range(0, num):
             print_out_str('{0:30}: {1:8}'.format(stats_array[i], self.ramdump.read_word(
                 self.ramdump.array_index(addr, 'atomic_long_t', i))))
 

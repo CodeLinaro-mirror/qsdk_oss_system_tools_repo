@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
 #
@@ -11,12 +11,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 
-# this script requires python2. However, we'd like to be able to print
+# this script requires python3. However, we'd like to be able to print
 # an informative message to a user who might be unknowingly running
-# python3 so we can't allow any python2 print statements to sneak in
-# since they result in syntax errors in python3. By importing
-# print_function we are requiring ourselves to use the python3 syntax.
-from __future__ import print_function
+# python2 so we can't allow any python2 print statements to sneak in
+# since they result in syntax errors in python3.
+
 
 import sys
 import os
@@ -38,33 +37,13 @@ VERSION = '2.0.27'
 
 # quick check of system requirements:
 major, minor = sys.version_info[:2]
-if major != 2:
-    print("This script requires python2 to run!\n")
+if major != 3:
+    print("This script requires python3 to run!\n")
     print("You seem to be running: " + sys.version)
     print()
     sys.exit(1)
-if minor != 7 and '--force-26' not in sys.argv:
-    from textwrap import dedent
-    print(dedent("""
-    WARNING! This script is developed and tested with Python 2.7.
-    You might be able to get things working on 2.6 by installing
-    a few dependencies (most notably, OrderedDict [1])
-    and then passing --force-26 to bypass this version check, but
-    the recommended and supported approach is to install python2.7.
+# This script is developed and tested with Python 3.6 onwards to latest Python 3.8.10
 
-    If you already have python2.7 installed but it's not the default
-    python2 interpreter on your system (e.g. if python2 points to
-    python2.6) then you'll need to invoke the scripts with python2.7
-    explicitly, for example:
-
-        $ python2.7 $(which ramparse.py) ...
-
-    instead of:
-
-        $ ramparse.py ...
-
-    [1] https://pypi.python.org/pypi/ordereddict"""))
-    sys.exit(1)
 if '--force-26' in sys.argv:
     sys.argv.remove('--force-26')
 
@@ -202,13 +181,13 @@ def parse_etr_option(option, opt_str, value, parser):
             break
         temp.append(arg)
 
-    if len(temp) is 2:
-	a = []
-	a.append((temp[0], temp[1]))
-	setattr(parser.values, option.dest, a)
-    elif len(temp) is 0:
-	a = "EBICS"
-	setattr(parser.values, option.dest, a)
+    if len(temp) == 2:
+        a = []
+        a.append((temp[0], temp[1]))
+        setattr(parser.values, option.dest, a)
+    elif len(temp) == 0:
+        a = "EBICS"
+        setattr(parser.values, option.dest, a)
     else:
         raise OptionValueError("--dump_q6_etr option should have either no argument or if specified, in 'q6mem-path, wlanfw.elf-path' format")
 
@@ -224,7 +203,7 @@ def parse_ram_file(option, opt_str, value, parser):
             break
         temp.append(arg)
 
-    if len(temp) is not 3:
+    if len(temp) != 3:
         raise OptionValueError(
             "Ram files must be specified in 'name, start, end' format")
 
@@ -311,7 +290,7 @@ if __name__ == '__main__':
             try:
                 os.makedirs(options.outdir)
             except:
-                print ("Failed to create %s. You probably don't have permissions there. Bailing." % options.outdir)
+                print("Failed to create %s. You probably don't have permissions there. Bailing." % options.outdir)
                 sys.exit(1)
     else:
         options.outdir = '.'

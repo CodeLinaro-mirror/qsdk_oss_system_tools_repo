@@ -36,7 +36,7 @@ def get_version(verfile):
 
 curr_version = get_version("ramparse.py")
 if (curr_version is not None):
-    print "Current version : ", curr_version
+    print("Current version : ", curr_version)
 share_path="//chewinlnx02/workspace/tools/ramdump-parser/latest.txt" 
 share_version = get_version(share_path)
 
@@ -53,7 +53,7 @@ if (curr_version != share_version):
     sys.exit(0)
 
 else:
-	print ('!!! Using the Updated version {0}'. format(temp))
+	print('!!! Using the Updated version {0}'. format(temp))
 	#print('!!! Latest version {0} is available at {1}'.format(share_version,Latest_Tool_Path))
 	#print "Found new version ", curr_version, " of ramparser"
 	cmdargs = str(sys.argv)

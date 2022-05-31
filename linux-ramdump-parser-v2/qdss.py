@@ -214,7 +214,7 @@ class QDSSDump():
 
         print_out_str('Now printing TMC-ETF registers to file')
         tmc_etf_out = ram_dump.open_file('tmc_etf.txt')
-        for a, b in tmc_registers.iteritems():
+        for a, b in tmc_registers.items():
             offset, name = b
             tmc_etf_out.write('{0} ({1}): {2:x}\n'.format(
                 a, name, ram_dump.read_u32(self.tmc_etf_start + offset, False)))
@@ -228,7 +228,7 @@ class QDSSDump():
 
         print_out_str('Now printing TMC-ETR registers to file')
         tmc_etf_out = ram_dump.open_file('tmc_etr.txt')
-        for a, b in tmc_registers.iteritems():
+        for a, b in tmc_registers.items():
             offset, name = b
             tmc_etf_out.write('{0} ({1}): {2:x}\n'.format(
                 a, name, ram_dump.read_u32(self.tmc_etr_start + offset, False)))
@@ -236,7 +236,7 @@ class QDSSDump():
 
     def print_etm_registers(self, ram_dump, base, fname):
         etm_out = ram_dump.open_file(fname)
-        for a, b in etm_registers.iteritems():
+        for a, b in etm_registers.items():
             offset, name = b
             etm_out.write('{0} ({1}): {2:x})\n'.format(
                 a, name, ram_dump.read_u32(base + offset * 4, False)))
@@ -307,13 +307,13 @@ class QDSSDump():
                 elif (entry & 0x2) == 2:
                     if blk < rwpval and rwpval < (blk + 4096):
                         if not bottom_delta_read:
-                            it = range(rwpval, blk + 4096)
+                            it = list(range(rwpval, blk + 4096))
                             bottom_delta_read = True
                         else:
-                            it = range(blk, blk + (rwpval - blk))
+                            it = list(range(blk, blk + (rwpval - blk)))
                             continue_looping = False
                     elif bottom_delta_read:
-                        it = range(blk, blk + 4096)
+                        it = list(range(blk, blk + 4096))
                     else:
                         start += 4
                         continue
@@ -321,13 +321,13 @@ class QDSSDump():
                 elif (entry & 0x1) == 1:
                     if blk < rwpval and rwpval < (blk + 4096):
                         if not bottom_delta_read:
-                            it = range(rwpval, blk + 4096)
+                            it = list(range(rwpval, blk + 4096))
                             bottom_delta_read = True
                         else:
-                            it = range(blk, blk + (rwpval - blk))
+                            it = list(range(blk, blk + (rwpval - blk)))
                             continue_looping = False
                     elif bottom_delta_read:
-                        it = range(blk, blk + 4096)
+                        it = list(range(blk, blk + 4096))
                     else:
                         start = dbaddr
                         continue
@@ -346,10 +346,10 @@ class QDSSDump():
                     start = blk
                     continue
                 elif (entry & 0x2) == 2:
-                    it = range(blk, blk + 4096)
+                    it = list(range(blk, blk + 4096))
                     start += 4
                 elif (entry & 0x1) == 1:
-                    it = range(blk, blk + 4096)
+                    it = list(range(blk, blk + 4096))
                     continue_looping = False
                 else:
                     break
@@ -403,9 +403,9 @@ class QDSSDump():
             else:
                 print_out_str('Contiguous memory type was selected for TMC ETR')
                 if (sts & 0x1) == 1:
-                    it = itertools.chain(range(rwpval, dbaddr+rsz), range(dbaddr, rwpval))
+                    it = itertools.chain(list(range(rwpval, dbaddr+rsz)), list(range(dbaddr, rwpval)))
                 else:
-                    it = range(dbaddr, dbaddr+rsz)
+                    it = list(range(dbaddr, dbaddr+rsz))
 
                 for i in it:
                     val = ram_dump.read_byte(i, False)

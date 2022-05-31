@@ -139,11 +139,11 @@ class Modules(RamParser):
                     except:
                         self.module_out.write('{0:4} 0x{1:8} {2}\n'.format(i, val, strtab_name))
 
-	except MemoryError:
-	    self.module_out.write ('MemoryError caught at module\n')
-	except Exception as e:
-	    self.module_out.write ('Exception caught at module : ' + format(e) + '\n')
-	    self.module_out.write ('Exception found for Kallsyms : {}, Module Count Offset : {}, Module Count : {}\n'. format(kallsyms, self.module_symtab_count_offset, module_symtab_count))
+        except MemoryError:
+            self.module_out.write ('MemoryError caught at module\n')
+        except Exception as e:
+            self.module_out.write ('Exception caught at module : ' + format(e) + '\n')
+            self.module_out.write ('Exception found for Kallsyms : {}, Module Count Offset : {}, Module Count : {}\n'. format(kallsyms, self.module_symtab_count_offset, module_symtab_count))
         if ((mod_nm == 'qca_nss_drv.ko' or mod_nm == 'qca-nss-drv.ko') and self.ramdump.stats_drv_offset is not None and self.ramdump.gnu_linkonce_this_size is not None):
             self.skb_count_addr = mod_list + int (self.ramdump.stats_drv_offset, 16) + int(self.ramdump.gnu_linkonce_this_size, 16)
             self.skb_count_addr = (self.skb_count_addr + 0x7) & ~0x7

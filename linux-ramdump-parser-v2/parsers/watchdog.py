@@ -580,12 +580,11 @@ class TZRegDump(RamParser):
             if last_pet_addr is not None:
                 last_pet = self.ramdump.read_dword(last_pet_addr)
                 print_out_str('Most recent time that the watchdog was pet (last pet) : {0}.{1:6}'
-                                            .format(last_pet / 1000000000, last_pet % 1000000000))
+                                            .format(last_pet // 1000000000, last_pet % 1000000000))
 
         jiffies_addr = self.ramdump.addr_lookup('jiffies')
         jiffies = self.ramdump.read_word(jiffies_addr)
-        print_out_str('System up time (jiffies) : {0}.{1:2}\n'.format((jiffies / 100)+300,
-                                    jiffies % 100))
+        print_out_str('System up time (jiffies) : {0}.{1:2}\n'.format((jiffies // 100)+300,jiffies % 100))
 
     def parse(self):
         self.print_wdog_pet_details()

@@ -345,7 +345,7 @@ class Armv7LPAEMMU(MMU):
         else:
             # see the ARMv7 ARM B3.6.6 (rev 0406C.b):
             self.input_addr_split = 14 - self.txsz
-            if self.input_addr_split not in range(7, 13):
+            if self.input_addr_split not in list(range(7, 13)):
                 raise ValueError("Invalid stage 1 second-level (initial) `n' value: 0x%x. Please check txsz."
                                 % self.input_addr_split)
 
@@ -511,7 +511,7 @@ class Armv8MMU(MMU):
             # next_level_base_addr_upper
             descriptor.add_field('next_level_base_addr_upper', (47, 12))
         else:
-	    return None
+            return None
 
         return descriptor
 
@@ -530,7 +530,7 @@ class Armv8MMU(MMU):
         if descriptor.dtype == Armv8MMU.TL_DESCRIPTOR_PAGE:
             descriptor.add_field('output_address', (47, 12))
         else:
-	    return None
+            return None
         return descriptor
 
     def do_level_lookup(self, table_base_address, table_index,
@@ -593,11 +593,11 @@ class Armv8MMU(MMU):
             page_index=(11,0))
 
         fl_desc = self.do_fl_sl_level_lookup(self.ttbr, virt_r.fl_index, 12, 30)
-	try:
+        try:
             if fl_desc.dtype == Armv8MMU.DESCRIPTOR_BLOCK:
                 return self.fl_block_desc_2_phys(fl_desc, virt_r)
-	except:
-	    return None
+        except:
+            return None
 
         base = Register(base=(47, 12))
         base.base = fl_desc.next_level_base_addr_upper

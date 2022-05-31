@@ -27,7 +27,7 @@ def print_lpae_mappings(mappings, outfile):
     """Dump some page tables. `mappings' should already be sorted."""
     fmt = '[0x{vstart:08x}--0x{vend:08x}] [0x{size:08x}] [A:0x{pstart:08x}--0x{pend:08x}] [{attrs}][{sizestring}]\n'
     fmt_unmapped = '[0x{vstart:08x}--0x{vend:08x}] [0x{size:08x}] [UNMAPPED]\n'
-    for ((virt_start, virt_end), info) in mappings.iteritems():
+    for ((virt_start, virt_end), info) in list(mappings.items()):
         if info is None:
             outfile.write(fmt_unmapped.format(
                 vstart=virt_start,
@@ -99,7 +99,7 @@ def get_coalesced_mappings(flat_mappings):
     """
     # fair warning: things are about to get a little hairy. have fun.
 
-    flat_items = flat_mappings.items()
+    flat_items = list(flat_mappings.items())
     # samers maps indices into flat_items to coalesced virtual
     # starting addresses for those items.
     samers = {}
@@ -136,21 +136,21 @@ def get_coalesced_mappings(flat_mappings):
     # the form: (virt_start, virt_end). Still mapping to the same
     # LeafMapping objects.
     cc = dict(((virt_start, virt_start + info.page_size), info)
-              for virt_start,info in coalesced_mappings.iteritems())
+              for virt_start,info in list(coalesced_mappings.items()))
     # maintain order to facilitate finding unmapped gaps
     cc = OrderedDict(sorted(cc.items()))
 
     # fill in the unmapped gaps by adding mappings to `None':
     if len(cc) > 0:
-        (first_vstart, first_vend), info = cc.items()[0]
-        (last_vstart, last_vend), info = cc.items()[-1]
+        (first_vstart, first_vend), info = list(cc.items())[0]
+        (last_vstart, last_vend), info = list(cc.items())[-1]
         if first_vstart != 0:
             cc[0, first_vstart] = None
         if last_vend != 0xffffffff:
             cc[last_vend, 0xffffffff] = None
         cc = OrderedDict(sorted(cc.items()))
-        keys = cc.keys()
-        for i, ((vstart, vend), info) in enumerate(cc.items()[1:-1]):
+        keys = list(cc.keys())
+        for i, ((vstart, vend), info) in enumerate(list(cc.items())[1:-1]):
             prev_start, prev_end = keys[i] # no need for -1 since we're iterating starting at 1
             if prev_end != vstart:
                 cc[prev_end, vstart] = None

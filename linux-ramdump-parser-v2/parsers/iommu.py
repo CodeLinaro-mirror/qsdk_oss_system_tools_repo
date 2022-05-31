@@ -182,7 +182,7 @@ class IOMMU(RamParser):
         if map_type == self.SL_AP2:
             map_type_str = '[R]'
         map = self.FlatMapping(virt, phy_adr, map_type_str, page_size, mapped)
-        if not mappings.has_key(virt):
+        if virt not in mappings:
             mappings[virt] = map
         else:
             self.out_file.write(
@@ -192,7 +192,7 @@ class IOMMU(RamParser):
     def add_collapsed_mapping(self, mappings, virt_start, virt_end, phys_start, phys_end, map_type, page_size, mapped):
         map = self.CollapsedMapping(
             virt_start, virt_end, phys_start, phys_end, map_type, page_size, mapped)
-        if not mappings.has_key(virt_start):
+        if virt_start not in mappings:
             mappings[virt_start] = map
         else:
             self.out_file.write(
@@ -249,7 +249,7 @@ class IOMMU(RamParser):
 
     def create_collapsed_mapping(self, flat_mapping):
         collapsed_mapping = {}
-        if len(flat_mapping.keys()) > 0:
+        if len(list(flat_mapping.keys())) > 0:
             virt_addrs = sorted(flat_mapping.keys())
             start_map = prev_map = flat_mapping[virt_addrs[0]]
             last_mapping = False

@@ -44,7 +44,7 @@ class PMIC(RamParser):
         pmic_out.write("======================================================\n")
         pmic_out.write("Slave ID	PMIC Register		Value\n")
         pmic_out.write("======================================================\n")
-        for i in xrange(pmic_regs.count):
+        for i in range(pmic_regs.count):
             pmic_out.write("0x{0:x}		0x{1:x}			0x{2:x}\n".format(pmic_regs.pmic_regs[i][0], pmic_regs.pmic_regs[i][1], pmic_regs.pmic_regs[i][2]))
         pmic_out.write("======================================================\n")
 
@@ -81,7 +81,7 @@ class PMICRegDump():
         value_offset = 0x8
         next_reg_offset = 0xc
         curr_addr = regs_start_addr
-        for i in xrange(self.count):
+        for i in range(self.count):
             addr_validity = ramdump.check_addr_validity(curr_addr + reg_offset, ramdump.ebi_files)
             if not addr_validity:
                 return 0

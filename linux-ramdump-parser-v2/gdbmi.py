@@ -69,12 +69,17 @@ class GdbMI(object):
         self._gdbmi = subprocess.Popen(
             [self.gdb_path, '--interpreter=mi2', self.elf],
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+            creationflags=0
         )
         self._flush_gdbmi()
 
     def close(self):
-        self._gdbmi.communicate('quit')
+        cmd = 'quit'
+        self._run(cmd)
+        self._gdbmi.kill()
+        self._gdbmi = None
 
     def __enter__(self):
         self.open()
@@ -85,7 +90,7 @@ class GdbMI(object):
 
     def _flush_gdbmi(self):
         while True:
-            line = self._gdbmi.stdout.readline().rstrip('\r\n')
+            line = str(self._gdbmi.stdout.readline()).rstrip('\r\n')
             if line == GDB_SENTINEL:
                 break
 
@@ -106,14 +111,15 @@ class GdbMI(object):
         if not skip_cache:
             if cmd in self._cache:
                 return GdbMIResult(self._cache[cmd], [])
-
-        self._gdbmi.stdin.write(cmd.rstrip('\n') + '\n')
+        self._gdbmi.stdin.write(cmd + '\n')
         self._gdbmi.stdin.flush()
 
         output = []
         oob_output = []
         while True:
-            line = self._gdbmi.stdout.readline().rstrip('\r\n')
+            line = str(self._gdbmi.stdout.readline()).rstrip('\r\n')
+            if not len(line):
+                break
             if line == GDB_SENTINEL:
                 break
             if line.startswith(GDB_DATA_LINE):
@@ -138,8 +144,7 @@ class GdbMI(object):
     def _run_for_one(self, cmd):
         result = self._run(cmd)
         if len(result.lines) != 1:
-            raise GdbMIException(
-                cmd, '\n'.join(result.lines + result.oob_lines))
+            raise GdbMIException(cmd, '\n'.join(result.lines + result.oob_lines))
         return result.lines[0]
 
     def _run_for_first(self, cmd):

@@ -51,7 +51,7 @@ def filename_from_vmlinux(function):
     if function.strip() == "":
         return ""
 
-    if symbols.has_key(function):
+    if function in symbols:
         return symbols[function]
 
     return ""
@@ -73,7 +73,7 @@ class meminfo_ranked:
         for addr in addrs:
             if addr is not None:
                 addr_str += str(hex(addr)) + " "
-        if self.meminfos.has_key(addr_str):
+        if addr_str in self.meminfos:
             self.meminfos[addr_str].update_meminfo(names, pfns, addrs, size, flags)
         else:
             mi = meminfo(self.ramdump, names, pfns, addrs, size, flags, free)
@@ -81,7 +81,7 @@ class meminfo_ranked:
 
     def sort_by_size(self):
         meminfo_sorted = collections.OrderedDict(
-                           sorted(self.meminfos.items(),
+                           sorted(list(self.meminfos.items()),
                                   key = lambda page : page[1].total_size,
                                   reverse=True))
         return meminfo_sorted

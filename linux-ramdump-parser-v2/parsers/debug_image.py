@@ -14,8 +14,8 @@ import struct
 from parser_util import register_parser, RamParser
 from print_out import print_out_str
 from qdss import QDSSDump
-from cachedump import save_l1_dump, parse_cache_dump
-from watchdog import TZRegDump
+from .cachedump import save_l1_dump, parse_cache_dump
+from .watchdog import TZRegDump
 from debug_image_v2 import DebugImage_v2
 from debug_image_v3 import DebugImage_v3
 

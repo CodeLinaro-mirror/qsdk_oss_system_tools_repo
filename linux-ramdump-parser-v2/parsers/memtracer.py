@@ -38,12 +38,12 @@ class memtracer_summary(RamParser):
               if self.module_updated != 1:
                  self.module_updated = 1
 
-                 if modname in self.dict_modules.keys():
+                 if modname in list(self.dict_modules.keys()):
                     self.dict_modules[modname] = self.dict_modules[modname] + Alloc_size
                  else:
                     self.dict_modules[modname] = Alloc_size
         else:
-           if 'Network stack' in self.dict_modules.keys():
+           if 'Network stack' in list(self.dict_modules.keys()):
               self.dict_modules['Network stack'] = self.dict_modules['Network stack'] + Alloc_size
            else:
               self.dict_modules['Network stack'] = Alloc_size
@@ -105,7 +105,7 @@ class memtracer_summary(RamParser):
 
     def calc_chksum(self, debug_obj, stack_trace_offset, Alloc_size):
         result = self.checksum(debug_obj, stack_trace_offset, Alloc_size)
-        if result in self.dictionary_trace.keys() or result in self.dictionary_size.keys():
+        if result in list(self.dictionary_trace.keys()) or result in list(self.dictionary_size.keys()):
            self.dictionary_size[result] = self.dictionary_size[result] + Alloc_size
            temp_list = self.dictionary_trace[result]
            temp_list[-1] = temp_list[-1] + 1
@@ -121,7 +121,7 @@ class memtracer_summary(RamParser):
         power_labels = {0: 'Bytes', 1: 'KB', 2: 'MB', 3: 'GB'}
         n = 0
         while size > power:
-            size /= power
+            size = size//power
             n += 1
         Actual_size = str(size) + ' '  + power_labels[n]
         return Actual_size
@@ -138,7 +138,7 @@ class memtracer_summary(RamParser):
         mem_usage_out.write('{0:20}'.format("Memoy usage summary:\n"))
         mem_usage_out.write('{0:20}'.format("====================\n"))
 
-        sort_orders = sorted(self.dict_modules.items(), key=lambda x: x[1], reverse=True)
+        sort_orders = sorted(list(self.dict_modules.items()), key=lambda x: x[1], reverse=True)
         size = 0
         for i in sort_orders:
             size = size + i[1]
@@ -158,7 +158,7 @@ class memtracer_summary(RamParser):
         mem_usage_out.write(
                  '{0:60} {1:10} {2:10}'.format(
                                     "STACK TRACE", "OCCURENCE", "ALLOC SIZE"))
-        sort_orders = sorted(self.dictionary_size.items(), key=lambda x: x[1], reverse=True)
+        sort_orders = sorted(list(self.dictionary_size.items()), key=lambda x: x[1], reverse=True)
         for i in sort_orders:
             stack_trace = self.dictionary_trace[i[0]]
             size = self.dictionary_size[i[0]]

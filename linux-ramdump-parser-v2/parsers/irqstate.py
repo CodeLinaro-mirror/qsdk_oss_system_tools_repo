@@ -151,7 +151,7 @@ class IrqParse(RamParser):
             rnode_addr = ram_dump.read_word(parent_addr + slots_offset +
                 (offset * pointer_size))
 
-        if rnode_addr is 0:
+        if rnode_addr == 0:
             return None
 
         return rnode_addr
