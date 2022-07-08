@@ -40,7 +40,10 @@ def print_out_exception():
     if out_file is None:
         traceback.print_exc(file=sys.stdout)
     else:
-        traceback.print_exc(file=out_file)
+        try:
+            traceback.print_exc(file=out_file)
+        except:
+            pass
 
 @contextmanager
 def print_out_section(header):

@@ -465,7 +465,7 @@ class RamDump():
 
         def mod_get_symbol(self, mod_list, mod_sec_addr, val):
             if (re.search('3.14.77', self.ramdump.version) is not None or (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (4, 4)):
-                if self.ramdump.kallsyms_offset >= 0:
+                if self.ramdump.kallsyms_offset is not None and self.ramdump.kallsyms_offset >= 0:
                     kallsyms = self.ramdump.read_word(mod_list + self.ramdump.kallsyms_offset);
                     module_symtab_count = self.ramdump.read_u32(kallsyms + self.ramdump.module_symtab_count_offset)
                     module_strtab = self.ramdump.read_word(kallsyms + self.ramdump.module_strtab_offset)
@@ -866,7 +866,7 @@ class RamDump():
             self.module_core_text_size_offset = self.field_offset('struct module','core_text_size')
         if (re.search('3.14.77', self.version) is not None or (self.kernel_version[0], self.kernel_version[1]) >= (4, 4)):
             self.kallsyms_offset = self.field_offset('struct module', 'kallsyms')
-            if self.kallsyms_offset >= 0:
+            if self.kallsyms_offset is not None and self.kallsyms_offset >= 0:
                 self.module_symtab_offset = self.field_offset('struct mod_kallsyms','symtab')
                 self.module_strtab_offset = self.field_offset('struct mod_kallsyms','strtab')
                 self.module_symtab_count_offset = self.field_offset('struct mod_kallsyms','num_symtab')
@@ -1696,11 +1696,11 @@ class RamDump():
 
         with open(file_path, 'r') as Lines:
             for partial in Lines:
-                if (self.kallsyms_offset < 0 and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
+                if ((self.kallsyms_offset is None or self.kallsyms_offset < 0) and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
                     (re.search("PC is at", partial) or re.search("LR is at", partial))):
                     continue
 
-                if (self.kallsyms_offset < 0 and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
+                if ((self.kallsyms_offset is None or self.kallsyms_offset < 0) and not (self.arm64 and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)) and
                     (re.search(PCLRPattern, partial) or re.search(FunctionPattern, partial))):
                     x = re.findall(ptr_re, partial)
                     x0, x1 = x[0], x[1]

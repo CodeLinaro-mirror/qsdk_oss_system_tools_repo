@@ -81,7 +81,7 @@ class Modules(RamParser):
         self.module_out.write('module symbol information\n')
         self.module_out.write('------------------------------------------\n')
         if (re.search('3.14.77', self.ramdump.version) is not None or (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (4, 4)):
-            if self.kallsyms_offset >= 0:
+            if self.kallsyms_offset is not None and self.kallsyms_offset >= 0:
                 kallsyms = self.ramdump.read_word(mod_list + self.kallsyms_offset)
                 module_symtab_count = self.ramdump.read_u32(kallsyms + self.module_symtab_count_offset)
                 module_symtab = self.ramdump.read_word(kallsyms + self.module_symtab_offset)

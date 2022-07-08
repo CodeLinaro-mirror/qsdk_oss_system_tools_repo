@@ -103,11 +103,11 @@ class DmesgLib(object):
                 # pointers twice without resolving them to symbol names. Hence, print once and
                 # parse the pointer strings and resolve them using gdb here
                 #
-                if (self.ramdump.kallsyms_offset < 0 and not (self.ramdump.arm64 and (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4)) and
+                if ((self.ramdump.kallsyms_offset is None or self.ramdump.kallsyms_offset < 0) and not (self.ramdump.arm64 and (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4)) and
                     (re.search("PC is at", partial) or re.search("LR is at", partial))):
                     continue
 
-                if (self.ramdump.kallsyms_offset < 0 and not (self.ramdump.arm64 and (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4)) and
+                if ((self.ramdump.kallsyms_offset is None or self.ramdump.kallsyms_offset < 0) and not (self.ramdump.arm64 and (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4)) and
                     (re.search("pc : \[<" + ptr_re + ">\].* lr : \[<" + ptr_re + ">\].*", partial) or
                      re.search("Function entered at \[<" + ptr_re + ">\].* from \[<" + ptr_re + ">\].*", partial))):
                     x = re.findall(ptr_re, partial)
