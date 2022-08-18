@@ -144,8 +144,8 @@ class Slabinfo_summary(RamParser):
             print_out_str ("slub_debug_on is not enabled")
             return
         cmdline = self.ramdump.get_command_line()
-        if (cmdline.find("slub_debug=FZPU") == -1) and (cmdline.find("slub_debug=FPU") == -1):
-            print_out_str ("slub_debug=FZPU is not present in command line. Boot args is not properly set")
+        if (cmdline.find("slub_debug=FPU") == -1) and (cmdline.find("slub_debug=FPU") == -1):
+            print_out_str ("slub_debug=FPU is not present in command line. Boot args is not properly set")
             return
         slab_out = self.ramdump.open_file('slabsummary.txt')
         self.print_slab_summary(slab_out)
