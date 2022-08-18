@@ -164,7 +164,7 @@ def page_to_pfn_flat(ramdump, page):
     page_size = ramdump.sizeof('struct page')
     # XXX Needs to change for LPAE
     pfn_offset = ramdump.phys_offset >> 12
-    return ((page - mem_map) / page_size) + pfn_offset
+    return ((page - mem_map) // page_size) + pfn_offset
 
 
 def pfn_to_page_flat(ramdump, pfn):

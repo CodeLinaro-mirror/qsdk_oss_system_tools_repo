@@ -131,7 +131,7 @@ class Slabinfo(RamParser):
         return self.ramdump.read_word(obj + s.offset)
 
     def slab_index(self, ramdump, p, addr, slab):
-        return (p - addr) / slab.size
+        return (p - addr) // slab.size
 
     def get_map(self, ramdump, slab, page, bitarray):
         freelist = self.ramdump.read_word(page + g_offsetof.page_freelist)
