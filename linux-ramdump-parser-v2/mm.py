@@ -82,8 +82,8 @@ def page_to_section(page_flags):
 
 def nr_to_section(ramdump, sec_num):
     memsection_struct_size = ramdump.sizeof('struct mem_section')
-    sections_per_root = 4096 / memsection_struct_size
-    sect_nr_to_root = sec_num / sections_per_root
+    sections_per_root = 4096 // memsection_struct_size
+    sect_nr_to_root = sec_num // sections_per_root
     masked = sec_num & (sections_per_root - 1)
     mem_section_addr = ramdump.addr_lookup('mem_section')
     mem_section = ramdump.read_word(mem_section_addr)
@@ -122,7 +122,7 @@ def page_to_pfn_sparse(ramdump, page):
     nr = nr_to_section(ramdump, section)
     addr = section_mem_map_addr(ramdump, nr)
     # divide by struct page size for division fun
-    return (page - addr) / sizeof_page
+    return (page - addr) // sizeof_page
 
 
 def get_vmemmap(ramdump):
@@ -294,16 +294,16 @@ class mm_page_ext:
             mem_section = ramdump.read_word(mem_section_addr)
 
             self.memsection_struct_size = ramdump.sizeof('struct mem_section')
-            self.sections_per_root = 4096 / self.memsection_struct_size
+            self.sections_per_root = 4096 // self.memsection_struct_size
 
             min_pfn = self.get_min_pfn()
             min_sec_nr = pfn_to_section_nr(min_pfn)
-            min_sec_nr_root = min_sec_nr / self.sections_per_root
+            min_sec_nr_root = min_sec_nr // self.sections_per_root
             min_mask = min_sec_nr & (self.sections_per_root - 1)
 
             max_pfn = self.get_max_pfn()
             max_sec_nr = pfn_to_section_nr(max_pfn)
-            max_sec_nr_root = max_sec_nr / self.sections_per_root
+            max_sec_nr_root = max_sec_nr // self.sections_per_root
             max_mask = max_sec_nr & (self.sections_per_root - 1)
 
             self.page_ext = []
@@ -326,7 +326,7 @@ class mm_page_ext:
         if self.ramdump.arm64:
             if self.ramdump.kernel_version >= (5, 4, 0):
                 sec_num = pfn_to_section_nr(pfn)
-                sect_nr_to_root = sec_num / self.sections_per_root
+                sect_nr_to_root = sec_num // self.sections_per_root
                 masked = sec_num & (self.sections_per_root - 1)
                 offset = self.memsection_struct_size * (sect_nr_to_root *
                                             self.sections_per_root + masked)
@@ -337,7 +337,7 @@ class mm_page_ext:
                 return page_ext_base + (self.page_ext_offset +
                                             self.page_ext_size) * pfn
             else:
-                sec_nr_root = pfn_to_section_nr(pfn) / self.sections_per_root
+                sec_nr_root = pfn_to_section_nr(pfn) // self.sections_per_root
                 sec_mask = pfn_to_section_nr(pfn) & (self.sections_per_root - 1)
                 return self.page_ext[sec_nr_root][sec_mask] + pfn *           \
                                             self.page_ext_size
