@@ -667,7 +667,7 @@ class RamDump():
             self.ath12k_path = self.ko_path + "/ath12k.ko"
             if os.path.isfile(self.ath12k_path):
                 self.ath12k_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.ath12k_path)
-                seg_info_nm_cmd = '{0} {1} | grep "B ath12k_coredump_seg_info"'.format(self.nm_path, self.ath12k_path)
+                seg_info_nm_cmd = '{0} {1} | grep "B ath12k_coredump_ram_info"'.format(self.nm_path, self.ath12k_path)
                 fd_nm = os.popen(seg_info_nm_cmd)
                 ret_nm = fd_nm.read()
                 try:
@@ -1261,12 +1261,18 @@ class RamDump():
             8: "remote_mlo.bin"}
         return switcher.get(sec_type, None)
 
-    def __dump_rddm_segments(self, dump_data_vaddr, dump_path, paging_header=False):
+    def __dump_rddm_segments(self, dump_data_vaddr, dump_path, device_id, paging_header=False):
         PAGING_SEC = 0x0
 
         dump_seg = self.read_word(dump_data_vaddr)
         if dump_seg is None:
             return
+
+        # Hardcoding the paging header size based on chipset.
+        if device_id == '0x1109':
+            padding_size = '0x3ff'
+        elif device_id == '0x1104':
+            padding_size = '0x1ff'
 
         if self.Is_Ath11k():
             seg_address = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "addr")
@@ -1338,6 +1344,9 @@ class RamDump():
             with open(seg_file, 'r+b') as fp:
                 fp.seek(8)
                 fp.write(struct.pack('<Q', paging_seg_count))
+                padding_offset = int(padding_size, base=16)
+                fp.seek(padding_offset)
+                fp.write(b'\x00')
 
     def get_mod_func(self, mod_list):
         high_mem_addr = self.addr_lookup('high_memory')
@@ -1392,6 +1401,7 @@ class RamDump():
             self.gdbmi.open()
 
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
+            dump_device_id = hex(self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "chip_id"))
             if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
@@ -1403,8 +1413,8 @@ class RamDump():
                 dump_seg_off = self.field_offset("struct ath11k_coredump_segment_info", "seg")
                 dump_seg = seg_info + dump_seg_off
 
-                self.__dump_rddm_segments(dump_seg, dump_path, True)
-                self.__dump_rddm_segments(dump_seg, dump_path, False)
+                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
+                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
 
             self.gdbmi.close()
 
@@ -1421,36 +1431,79 @@ class RamDump():
                 print_out_str('Unable to get gnu linkonce size')
                 return
 
-            if self.seg_info_offset is None:
-                print_out_str('Unable to get segment info address')
-                return
-
-            seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
-
-            self.gdbmi.close()
-
-            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath12k_path)
-            self.gdbmi.open()
-
-            qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
-            if qrtr_node_id != 0:
-                print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
-
-                dump_path = os.path.join(outdir, "rddm_dump")
-
-                if os.path.exists(dump_path):
-                    shutil.rmtree(dump_path)
-
+            if self.seg_info_offset:
+                seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
+                self.gdbmi.close()
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath12k_path)
+                self.gdbmi.open()
                 dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
-                dump_seg = seg_info + dump_seg_off
+                num_chip = self.read_structure_field(seg_info, "struct ath12k_coredump_info", "num_chip")
 
-                self.__dump_rddm_segments(dump_seg, dump_path, True)
-                self.__dump_rddm_segments(dump_seg, dump_path, False)
+                for i in range(num_chip):
+                    dump = self.field_offset("struct ath12k_coredump_info", "chip_seg_info[{0}]".format(i))
+                    seg_info_mod = seg_info
+                    seg_info_mod += dump
+                    qrtr_node_id = self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "qrtr_id")
+                    bus_id = self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "bus_id")
+                    dump_device_id = hex(self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "chip_id"))
 
-            self.gdbmi.close()
+                    if qrtr_node_id != 0:
+                        print_out_str('!!! Found RDDM dumps with bus id {0}'.format(bus_id))
+                        dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(bus_id))
 
-            self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
-            self.gdbmi.open()
+                        if os.path.exists(dump_path):
+                            shutil.rmtree(dump_path)
+
+                        dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
+                        dump_seg = seg_info_mod + dump_seg_off
+
+                        self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
+                        self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
+
+                self.gdbmi.close()
+
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
+                self.gdbmi.open()
+            else:
+                seg_info_nm_cmd = '{0} {1} | grep "B ath12k_coredump_seg_info"'.format(self.nm_path,self.ath12k_path)
+                fd_nm = os.popen(seg_info_nm_cmd)
+                ret_nm = fd_nm.read()
+                try:
+                    self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
+                except:
+                    print_out_str('Unable to get segment info address')
+                    return
+
+                if self.seg_info_offset is None:
+                    print_out_str('Unable to get segment info address')
+                    return
+                seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
+
+                self.gdbmi.close()
+
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath12k_path)
+                self.gdbmi.open()
+
+                qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
+                dump_device_id = hex(self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "chip_id"))
+                if qrtr_node_id != 0:
+                    print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+
+                    dump_path = os.path.join(outdir, "rddm_dump")
+
+                    if os.path.exists(dump_path):
+                        shutil.rmtree(dump_path)
+
+                    dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
+                    dump_seg = seg_info + dump_seg_off
+
+                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
+                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
+
+                self.gdbmi.close()
+
+                self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
+                self.gdbmi.open()
         else:
             plat_env_index = self.addr_lookup('plat_env_index')
 
@@ -1467,6 +1520,7 @@ class RamDump():
                         plat_env = self.read_word(plat_env)
 
                     qrtr_node_id = self.read_structure_field(plat_env, "struct cnss_plat_data", "qrtr_node_id")
+                    dump_device_id = hex(self.read_structure_field(plat_env, "struct cnss_plat_data", "device_id"))
 
                     if qrtr_node_id != 0:
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
@@ -1476,8 +1530,8 @@ class RamDump():
 
                         dump_data_vaddr = plat_env + dump_data_vaddr_off
 
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
             else:
                 # cnss variables migrated to ipq_cnss2.ko module
                 if self.ko_path is None:
@@ -1532,6 +1586,7 @@ class RamDump():
                     seg_info_address = self.read_u32(seg_info)
 
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
+                    dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
                     if qrtr_node_id != 0:
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
@@ -1540,8 +1595,8 @@ class RamDump():
 
                         dump_data_vaddr = seg_info_address + dump_data_vaddr_off
 
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, True)
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, False)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
                     seg_info = seg_info + int (self.seg_info_offset, 16)
 
                 self.gdbmi.close()
@@ -2424,6 +2479,16 @@ class RamDump():
         else:
             return s[0]
 
+    # returns a value guaranteed to be 8 bits
+    def read_u8(self, address, virtual=True, trace=False, cpu=None):
+        if trace:
+            print_out_str('reading {0:x}'.format(address))
+        s = self.read_string(address, '<B', virtual, trace, cpu)
+        if s is None:
+            return None
+        else:
+            return s[0]
+
     # reads a 4 or 8 byte field from a structure
     def read_structure_field(self, address, struct_name, field):
         size = self.sizeof("(({0} *)0)->{1}".format(struct_name, field))
@@ -2431,6 +2496,8 @@ class RamDump():
             return self.read_u32(address + self.field_offset(struct_name, field))
         if size == 8:
             return self.read_u64(address + self.field_offset(struct_name, field))
+        if size == 1:
+            return self.read_u8(address + self.field_offset(struct_name, field))
         return None
 
     def deference_variable(self, virt_or_name):
