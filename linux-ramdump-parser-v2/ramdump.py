@@ -1431,6 +1431,8 @@ class RamDump():
                 print_out_str('Unable to get gnu linkonce size')
                 return
 
+            print_out_str('--------------------- ATH12k Structure Details Extraction STARTED---------------------------------')
+            print_out_str('Seg_info_offset = {0}'.format(self.seg_info_offset))
             if self.seg_info_offset:
                 seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
                 self.gdbmi.close()
@@ -1438,6 +1440,7 @@ class RamDump():
                 self.gdbmi.open()
                 dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
                 num_chip = self.read_structure_field(seg_info, "struct ath12k_coredump_info", "num_chip")
+                print_out_str('Chip Count = {0}'.format(num_chip))
 
                 for i in range(num_chip):
                     dump = self.field_offset("struct ath12k_coredump_info", "chip_seg_info[{0}]".format(i))
@@ -1446,6 +1449,12 @@ class RamDump():
                     qrtr_node_id = self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "qrtr_id")
                     bus_id = self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "bus_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "chip_id"))
+                    print_out_str('dump_hex_{0} = {1}'.format(i,hex(dump)))
+                    print_out_str('Seg_info_{0} = {1}'.format(i,hex(seg_info)))
+                    print_out_str('Seg_info_mod_{0} = {1}'.format(i,hex(seg_info_mod)))
+                    print_out_str('qrtr_node_id_{0} = {1}'.format(i,qrtr_node_id))
+                    print_out_str('bus_id_{0} = {1}'.format(i,bus_id))
+                    print_out_str('Devide_ID_{0} = {1}'.format(i,dump_device_id))
 
                     if qrtr_node_id != 0:
                         print_out_str('!!! Found RDDM dumps with bus id {0}'.format(bus_id))
@@ -1456,12 +1465,15 @@ class RamDump():
 
                         dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
                         dump_seg = seg_info_mod + dump_seg_off
+                        print_out_str('dump_seg_off_{0} = {1}'.format(qrtr_node_id,hex(dump_seg_off)))
+                        print_out_str('dump_seg_{0} = {1}'.format(qrtr_node_id,hex(dump_seg)))
 
                         self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
                         self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
 
                 self.gdbmi.close()
 
+                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
             else:
@@ -1486,6 +1498,9 @@ class RamDump():
 
                 qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
                 dump_device_id = hex(self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "chip_id"))
+                print_out_str('Seg_info = {0}'.format(hex(seg_info)))
+                print_out_str('qrtr_node_id = {0}'.format(qrtr_node_id))
+                print_out_str('Devide_ID = {0}'.format(dump_device_id))
                 if qrtr_node_id != 0:
                     print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
 
@@ -1496,12 +1511,16 @@ class RamDump():
 
                     dump_seg_off = self.field_offset("struct ath12k_coredump_segment_info", "seg")
                     dump_seg = seg_info + dump_seg_off
+                    print_out_str('dump_seg_off_{0} = {1}'.format(qrtr_node_id,hex(dump_seg_off)))
+                    print_out_str('dump_seg_{0} = {1}'.format(qrtr_node_id,hex(dump_seg)))
+
 
                     self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
                     self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
 
                 self.gdbmi.close()
 
+                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
         else:
