@@ -452,17 +452,6 @@ class RamDump():
                 if urc is None or urc < 0:
                     break
 
-        def arm_symbol_mapping(self, sym):
-            sym1="atd"
-            if len(sym)>=3:
-
-                if (sym[0] == '$' and sym1.find(sym[1]) and (sym[2] == '\0' or sym[2] == '.')):
-                    return 1
-                else:
-                    return 0
-            else:
-                return 0
-
         def mod_get_symbol(self, mod_list, mod_sec_addr, val):
             if (re.search('3.14.77', self.ramdump.version) is not None or (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (4, 4)):
                 if self.ramdump.kallsyms_offset is not None and self.ramdump.kallsyms_offset >= 0:
@@ -515,11 +504,11 @@ class RamDump():
 
                     if (strtab_name):
                         if (symtab_st_value <= addr and symtab_st_value > symtab_best_st_value and
-                            strtab_name[0] != '\0' and self.arm_symbol_mapping(strtab_name) == 0):
+                            strtab_name[0] != '\0' and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                             best = i
 
                         if (symtab_st_value > addr and symtab_st_value < nextval and strtab_name[0] != '\0'
-                           and self.arm_symbol_mapping(strtab_name) == 0):
+                           and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                            nextval = symtab_st_value
             except MemoryError:
                  pass #print_out_str('MemoryError caught here')
@@ -2324,7 +2313,7 @@ class RamDump():
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffc010000000):
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffd010000000):
                 return self.unwind.get_module_name_from_addr(addr)
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
                 return self.unwind.get_module_name_from_addr(addr)
@@ -2362,6 +2351,18 @@ class RamDump():
             premid = mid
 
         return (self.lookup_table[mid][1], addr - self.lookup_table[mid][0], None, self.lookup_table[mid][2])
+
+    def arm_symbol_mapping(self, sym):
+        sym1="axtd"
+        if len(sym)>=2:
+            if (len(sym) == 2 and sym[0] == '$' and sym1.find(sym[1])):
+                return 1
+            elif (sym[0] == '$' and sym1.find(sym[1]) and (sym[2] == '\0' or sym[2] == '.')):
+                return 1
+            else:
+                return 0
+        else:
+            return 0
 
     def read_physical(self, addr, length, trace=False):
         ebi = (-1, -1, -1)

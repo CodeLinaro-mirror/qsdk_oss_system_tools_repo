@@ -117,6 +117,8 @@ class Modules(RamParser):
                     if(symtab_st_name is None):
                         continue
                     strtab_name = self.ramdump.read_cstring(module_strtab + symtab_st_name, 40)
+                    if (strtab_name != '\0' and  self.ramdump.arm_symbol_mapping(strtab_name)):
+                        continue
                 try:
                     self.module_out.write('{0:4}  0x{1:8x}  {2}/0x{3:x}\n'.format(i, symtab_st_value, strtab_name, symtab_st_size))
                 except:
