@@ -2313,7 +2313,7 @@ class RamDump():
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffd010000000):
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffc010000000):
                 return self.unwind.get_module_name_from_addr(addr)
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
                 return self.unwind.get_module_name_from_addr(addr)
@@ -2325,7 +2325,10 @@ class RamDump():
             return self.unwind.get_module_name_from_addr(addr)
 
         if (addr < self.page_offset):
-            return ('(No symbol for address 0x{0:x})'.format(addr), 0x0, None)
+            module_name = self.unwind.get_module_name_from_addr(addr)
+            if (module_name is None):
+                return ('(No symbol for address 0x{0:x})'.format(addr), 0x0, None)
+            return module_name
 
         low = 0
         high = len(self.lookup_table)
@@ -2354,10 +2357,10 @@ class RamDump():
 
     def arm_symbol_mapping(self, sym):
         sym1="axtd"
-        if len(sym)>=2:
-            if (len(sym) == 2 and sym[0] == '$' and sym1.find(sym[1])):
+        if len(sym) >= 2:
+            if (len(sym) == 2 and sym[0] == '$' and sym1.find(sym[1]) != -1):
                 return 1
-            elif (sym[0] == '$' and sym1.find(sym[1]) and (sym[2] == '\0' or sym[2] == '.')):
+            elif (sym[0] == '$' and sym1.find(sym[1]) != -1 and (sym[2] == '\0' or sym[2] == '.')):
                 return 1
             else:
                 return 0
