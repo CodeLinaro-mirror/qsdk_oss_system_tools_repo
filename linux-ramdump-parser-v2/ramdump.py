@@ -672,13 +672,6 @@ class RamDump():
         if self.phys_offset is None:
             self.get_hw_id()
 
-        text_addr = self.addr_lookup('_text')
-        if self.isELF32():
-            self.page_offset = text_addr & 0xF0000000
-        else:
-            self.page_offset = text_addr - 0x80000
-        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
-
         if self.ko_path is not None and readelf_path is not None:
             #nss driver module path
             self.qca_nss_drv_path = self.ko_path + "/qca-nss-drv.ko"
@@ -737,6 +730,15 @@ class RamDump():
         if self.arm64:
             self.thread_size = 16384
 
+        text_addr = self.addr_lookup('_text')
+        if self.isELF32():
+            self.page_offset = text_addr & 0xF0000000
+        else:
+            if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
+                self.page_offset = text_addr
+            else:
+                self.page_offset = text_addr - 0x80000
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
         if page_offset is not None:
             print_out_str(
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
@@ -784,7 +786,13 @@ class RamDump():
             print_out_str('!!! Exiting now')
             sys.exit(1)
         self.swapper_pg_dir_addr =  self.swapper_pg_dir - self.page_offset
-        self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
+        if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
+            if self.arm64:
+                self.kernel_text_offset = self.addr_lookup('_stext') - self.page_offset
+            else:
+                self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
+        else:
+            self.kernel_text_offset = self.addr_lookup('stext') - self.page_offset
         pg_dir_size = self.kernel_text_offset - self.swapper_pg_dir_addr
         if self.arm64:
             print_out_str('Using 64bit MMU')
@@ -1100,7 +1108,10 @@ class RamDump():
                     config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
                     print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
                     if config_value is not None:
-                        self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
+                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
+                           self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64))
+                        else:
+                           self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
                     else:
                         print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
                         return False
@@ -2313,7 +2324,7 @@ class RamDump():
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (0xffffffc008000000 <= addr < 0xffffffc010000000):
+            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (self.mod_start_addr <= addr <= self.mod_end_addr):
                 return self.unwind.get_module_name_from_addr(addr)
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
                 return self.unwind.get_module_name_from_addr(addr)
