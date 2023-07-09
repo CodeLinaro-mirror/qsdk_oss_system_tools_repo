@@ -208,6 +208,9 @@ class IrqParse(RamParser):
             chip_name_addr = ram_dump.read_word(chip + chip_name_offset)
             chip_name = ram_dump.read_cstring(chip_name_addr, 48)
 
+            if chip_name is None:
+                chip_name = ""
+
             if action != 0:
                 name_addr = ram_dump.read_word(action + action_name_offset)
                 name = ram_dump.read_cstring(name_addr, 48)
