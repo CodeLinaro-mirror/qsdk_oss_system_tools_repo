@@ -58,3 +58,4 @@ class DebugImage_v3():
             print_out_str('\n======== PC/LR and BackTrace for DCC Scan Dump ==========\n')
             regs.dump_core_pc(ram_dump, True)
             print_out_str('======== End of PC/LR and BackTrace for DCC Scan Dump ==========\n')
+            regs.dump_dcc_all_regs(ram_dump)
