@@ -348,7 +348,7 @@ class mm_page_ext:
                 if self.ramdump.kernel_version >= (6, 1, 0):
                     return page_ext_base + (self.page_ext_offset * (self.page_ext_size -4)) * pfn
                 else:
-                    return page_ext_base + (self.page_ext_offset * (self.page_ext_size)) * pfn
+                    return page_ext_base + (self.page_ext_offset + self.page_ext_size) * pfn
             else:
                 sec_nr_root = pfn_to_section_nr(ramdump, pfn) // self.sections_per_root
                 sec_mask = pfn_to_section_nr(ramdump, pfn) & (self.sections_per_root - 1)
