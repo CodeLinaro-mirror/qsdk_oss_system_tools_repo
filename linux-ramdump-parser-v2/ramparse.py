@@ -272,6 +272,7 @@ if __name__ == '__main__':
                       dest='rddm', help='Extract RDDM dumps')
     parser.add_option('', '--ath11k', action='store_true', dest='ath11k', help='ath11k specific parse')
     parser.add_option('', '--ath12k', action='store_true', dest='ath12k', help='ath12k specific parse')
+    parser.add_option('', '--kaslr-enabled', action='store_true', dest='kaslr', help='parsing based on kaslr kernel and module offset')
     parser.add_option('', '--console-log', dest='console_log', help='parse console logs to extract functions and modules')
     parser.add_option('', '--scandump-output', dest='scan_dump_output', help='Extract PC, LR and BT for DCC scan Dump')
 
@@ -467,7 +468,7 @@ if __name__ == '__main__':
     scan_dump_output = options.scan_dump_output
 
     dump = RamDump(options.vmlinux, nm_path, gdb_path, readelf_path, ko_path, objdump_path, options.ram_addr,
-                   options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom, options.scan_dump_output,
+                   options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom, options.scan_dump_output, options.kaslr,
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=options.arm64,

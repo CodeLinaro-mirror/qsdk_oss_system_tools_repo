@@ -593,7 +593,7 @@ class RamDump():
                 return None
 
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
-                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, cpu0_reg_path=None, cpu1_reg_path=None,
+                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
                  qtf=False, t32_host_system=None, ath11k=None, ath12k=None):
         self.ebi_files = []
@@ -625,6 +625,7 @@ class RamDump():
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
         self.ath12k = ath12k
+        self.kaslr_enabled = False
 
         if self.ath11k is not None and self.ath12k is not None:
             print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
@@ -837,6 +838,26 @@ class RamDump():
             print_out_str(
                 '!!! This is a BUG in the parser and should be reported.')
             sys.exit(1)
+
+        if is_kaslr_enabled:
+            # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
+            # Kernel and module offset details are stored in the below IMEM region
+            # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
+            # Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
+            self.kaslr_enabled = True
+            module_offset_former = self.read_u32(0x086006BC, False)
+            module_offset_latter = self.read_u32(0x086006C0, False)
+
+            # concatenating module offset values using f string
+            self.kaslr_module_offset = int(f'0x{module_offset_latter:x}{module_offset_former:x}', 16)
+            print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
+
+            kernel_offset_former = self.read_u32(0x086006C4, False)
+            kernel_offset_latter = self.read_u32(0x086006C8, False)
+
+            # concatenating kernel offset values using f string
+            self.kaslr_kernel_offset = int(f'0x{kernel_offset_latter:x}{kernel_offset_former:x}', 16)
+            print_out_str("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
 
         if not self.get_config():
             print_out_str('!!! Could not get saved configuration')
@@ -1111,7 +1132,10 @@ class RamDump():
                         if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
                            self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64))
                         else:
-                           self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
+                            if self.kaslr_enabled:
+                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000 + self.kaslr_kernel_offset
+                            else:
+                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
                     else:
                         print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
                         return False
@@ -1134,7 +1158,10 @@ class RamDump():
         # Set Module end address
         if (self.isELF64()):
             if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
-                self.mod_end_addr = self.mod_start_addr + 0x8000000
+                if self.kaslr_enabled:
+                    self.mod_end_addr = self.mod_start_addr + 0x8000000 + self.kaslr_module_offset
+                else:
+                    self.mod_end_addr = self.mod_start_addr + 0x8000000
             else:
                 self.mod_end_addr = self.page_offset
         else:
@@ -1584,6 +1611,7 @@ class RamDump():
                 ret_nm = fd_nm.read()
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
+                    print_out_str('cnss seg offset : {0}'.format(self.seg_info_offset))
                 except:
                     print_out_str('Unable to get segment info address')
                     return
@@ -1597,13 +1625,17 @@ class RamDump():
                 plat_env_index = self.read_u32(plat_env_index_address)
 
                 seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.cnss_gnu_linkonce_this_size, 16)
+                print_out_str ("cnss seg info is set as {}".format(hex(seg_info)))
 
                 dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
                 dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
 
                 for i in range(plat_env_index):
-                    seg_info_address = self.read_u32(seg_info)
-
+                    if self.kaslr_enabled:
+                        seg_info_address = self.read_u64(seg_info)
+                    else:
+                        seg_info_address = self.read_u32(seg_info)
+                    print_out_str ("cnss seg info address is set as {}".format(hex(seg_info_address)))
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
                     if qrtr_node_id != 0:
@@ -1617,6 +1649,7 @@ class RamDump():
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
                     seg_info = seg_info + int (self.seg_info_offset, 16)
+                    print_out_str ("cnss seg info2 is set as {}".format(hex(seg_info)))
 
                 self.gdbmi.close()
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
@@ -1962,7 +1995,10 @@ class RamDump():
             ebi_file = ebi_path.split('.')[0] + 'File'
             startup_script.write('data.load.binary &{0} 0x{1:x}\n'.format(
                 ebi_file, ram[1]).encode('ascii', 'ignore'))
-        startup_script.write(
+        if self.kaslr_enabled:
+            startup_script.write('data.load.elf &ELFFile 0x{0:x} /nocode\n'.format(self.kaslr_kernel_offset).encode('ascii', 'ignore'))
+        else:
+            startup_script.write(
             ('data.load.elf &ELFFile /nocode\n').encode('ascii', 'ignore'))
         if self.arm64 and self.Is_Hawkeye() == True:
             #startup_script.write('Register.Set NS 1\n'.encode('ascii', 'ignore'))
@@ -2235,12 +2271,18 @@ class RamDump():
         for line in symbols:
             s = line.split(' ')
             if len(s) == 4:
-                self.lookup_table.append((int(s[0], 16), s[3].rstrip(), int(s[1], 16)))
+                if self.kaslr_enabled:
+                    self.lookup_table.append((int(s[0], 16) + self.kaslr_kernel_offset, s[3].rstrip(), int(s[1], 16)))
+                else:
+                    self.lookup_table.append((int(s[0], 16), s[3].rstrip(), int(s[1], 16)))
         stream.close()
 
     def addr_lookup(self, symbol):
         try:
-            return self.gdbmi.address_of(symbol)
+            if self.kaslr_enabled:
+                return self.gdbmi.address_of(symbol) + self.kaslr_kernel_offset
+            else:
+                return self.gdbmi.address_of(symbol)
         except gdbmi.GdbMIException:
             pass
 
@@ -2324,7 +2366,9 @@ class RamDump():
         vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (self.mod_start_addr <= addr <= self.mod_end_addr):
+            if (self.kaslr_enabled and self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and ((0xffffffc008000000 + self.kaslr_module_offset + self.kaslr_kernel_offset) <= addr < (0xffffffc010000000 + self.kaslr_module_offset + self.kaslr_kernel_offset)):
+                return self.unwind.get_module_name_from_addr(addr)
+            elif (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (self.mod_start_addr <= addr <= self.mod_end_addr):
                 return self.unwind.get_module_name_from_addr(addr)
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
                 return self.unwind.get_module_name_from_addr(addr)
