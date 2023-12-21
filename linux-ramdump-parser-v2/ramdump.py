@@ -1121,9 +1121,9 @@ class RamDump():
                     config_value = self.get_config_data('CONFIG_KASAN_SHADOW_OFFSET')
                     print_out_str('CONFIG_KASAN_SHADOW_OFFSET={0}'.format(config_value))
                     if config_value is not None:
-					    if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
+                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
                             self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16))
-						else:
+                        else:
                             self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16)) + 0x8000000
                     else:
                         print_out_str("CONFIG_KASAN_SHADOW_OFFSET not found!!!")
