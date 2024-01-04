@@ -1614,7 +1614,6 @@ class RamDump():
                 ret_nm = fd_nm.read()
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
-                    print_out_str('cnss seg offset : {0}'.format(self.seg_info_offset))
                 except:
                     print_out_str('Unable to get segment info address')
                     return
@@ -1628,7 +1627,6 @@ class RamDump():
                 plat_env_index = self.read_u32(plat_env_index_address)
 
                 seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.cnss_gnu_linkonce_this_size, 16)
-                print_out_str ("cnss seg info is set as {}".format(hex(seg_info)))
 
                 dump_data_vaddr_off = self.field_offset("struct cnss_ramdump_info_v2", "dump_data_vaddr")
                 dump_data_vaddr_off = dump_data_vaddr_off + self.field_offset("struct cnss_plat_data", "ramdump_info_v2")
@@ -1637,8 +1635,8 @@ class RamDump():
                     if self.kaslr_enabled:
                         seg_info_address = self.read_u64(seg_info)
                     else:
-                        seg_info_address = self.read_u32(seg_info)
-                    print_out_str ("cnss seg info address is set as {}".format(hex(seg_info_address)))
+                        seg_info_address = self.read_u64(seg_info)
+
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
                     if qrtr_node_id != 0:
@@ -1652,7 +1650,6 @@ class RamDump():
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
                     seg_info = seg_info + int (self.seg_info_offset, 16)
-                    print_out_str ("cnss seg info2 is set as {}".format(hex(seg_info)))
 
                 self.gdbmi.close()
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
