@@ -592,6 +592,18 @@ class RamDump():
             else:
                 return None
 
+    # check whether module is stripped or unstripped
+    def IsModuleStripped(self, kopath):
+        filecmd = 'file {0}'.format(kopath)
+        fc = os.popen(filecmd)
+        output = fc.read()
+        print_out_str("{0}\nOutput : {1}".format(filecmd, output))
+        index = output.find('with debug_info')
+        if index == -1:
+            return True
+        else:
+            return False
+
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
                  file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
@@ -1409,6 +1421,12 @@ class RamDump():
 
     def get_rddm_dump(self, outdir):
         if self.Is_Ath11k():
+            if os.path.isfile(self.ath11k_path):
+                if self.IsModuleStripped(self.ath11k_path):
+                    print_out_str('ath11k.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ath11k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath11k")
 
             if self.mod_list_addr is None:
@@ -1451,8 +1469,13 @@ class RamDump():
             self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
             self.gdbmi.open()
         elif self.Is_Ath12k():
+            if os.path.isfile(self.ath12k_path):
+                if self.IsModuleStripped(self.ath12k_path):
+                    print_out_str('ath12k.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ath12k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath12k")
-
             if self.mod_list_addr is None:
                 print_out_str('Unable to get ath11k module address')
                 return
@@ -1591,6 +1614,12 @@ class RamDump():
                     if not os.path.isfile(self.cnss_path):
                         print_out_str('ipq_cnss2.ko module does not exists in ko module path.')
                         return
+
+                if self.IsModuleStripped(self.cnss_path):
+                    print_out_str('ipqcnss2.ko module is stripped. Please run with unstripped Module')
+                    return
+                else:
+                    print_out_str('ipqcnss2.ko module is unstripped. Proceeding with Bin File extraction')
 
                 if self.readelf_path is None:
                     print_out_str('readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
