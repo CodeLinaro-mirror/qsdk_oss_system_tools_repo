@@ -2065,16 +2065,29 @@ class RamDump():
             startup_script.write('mmu.on\n'.encode('ascii', 'ignore'))
             startup_script.write('mmu.scan\n'.encode('ascii', 'ignore'))
 
-        if self.arm64:
-            startup_script.write(
-                 'task.config C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
-            startup_script.write(
-                 'menu.reprogram C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+        if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+            startup_script.write('system.Option MMUSPACES ON\n'.encode('ascii', 'ignore'))
+            if self.arm64:
+                startup_script.write(
+                    'task.config C:\\T32\\demo\\arm64\\kernel\\linux\\awareness\\linux.t32\n'.encode('ascii', 'ignore'))
+                startup_script.write(
+                    'menu.reprogram C:\\T32\\demo\\arm64\\kernel\\linux\\awareness\\linux.men\n'.encode('ascii', 'ignore'))
+            else:
+                startup_script.write(
+                     'task.config C:\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.t32\n'.encode('ascii', 'ignore'))
+                startup_script.write(
+                     'menu.reprogram C:\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.men\n'.encode('ascii', 'ignore'))
         else:
-            startup_script.write(
-                'task.config c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
-            startup_script.write(
-                'menu.reprogram c:\\t32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+            if self.arm64:
+                startup_script.write(
+                     'task.config C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+                startup_script.write(
+                     'menu.reprogram C:\\T32\\demo\\arm64\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+            else:
+                startup_script.write(
+                    'task.config C:\\T32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+                startup_script.write(
+                    'menu.reprogram C:\\T32\\demo\\arm\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
 
         startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
         startup_script.write(
