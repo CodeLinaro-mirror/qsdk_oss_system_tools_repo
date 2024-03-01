@@ -469,7 +469,10 @@ class RamDump():
                 module_symtab = self.ramdump.read_word(mod_list + self.ramdump.module_symtab_offset)
                 module_strtab = self.ramdump.read_word(mod_list + self.ramdump.module_strtab_offset)
 
-            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
+            if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (6, 4):
+                module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_size_offset)
+                module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_size_offset)
+            elif (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):
                 module_init_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_init_offset + self.ramdump.module_text_size_offset)
                 module_core_text_size = self.ramdump.read_u32(mod_list + self.ramdump.module_layout_core_offset + self.ramdump.module_text_size_offset)
             else:
@@ -506,7 +509,8 @@ class RamDump():
                         if (symtab_st_value <= addr and symtab_st_value > symtab_best_st_value and
                             strtab_name[0] != '\0' and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                             best = i
-
+                        if nextval is None:
+                           nextval = 0
                         if (symtab_st_value > addr and symtab_st_value < nextval and strtab_name[0] != '\0'
                            and self.ramdump.arm_symbol_mapping(strtab_name) == 0):
                            nextval = symtab_st_value
@@ -874,7 +878,12 @@ class RamDump():
         self.next_mod_offset = self.field_offset('struct module','list')
         self.mod_start = self.read_word('modules')
         self.mod_name_offset = self.field_offset('struct module', 'name')
-        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+        if (self.kernel_version[0], self.kernel_version[1]) >= (6, 4):
+            self.module_layout_init_offset = self.field_offset('struct module', 'mem[4]')
+            self.module_layout_core_offset = self.field_offset('struct module', 'mem[0]')
+            self.module_offset = self.field_offset('struct module_memory', 'base')
+            self.module_size_offset = self.field_offset('struct module_memory', 'size')
+        elif (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
             self.module_layout_init_offset = self.field_offset('struct module', 'init_layout')
             self.module_layout_core_offset = self.field_offset('struct module', 'core_layout')
             self.module_offset = self.field_offset('struct module_layout', 'base')
@@ -1165,7 +1174,12 @@ class RamDump():
 
         # Set Module end address
         if (self.isELF64()):
-            if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+            if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 4)):
+                if self.kaslr_enabled:
+                    self.mod_end_addr = self.mod_start_addr + 0x80000000 + self.kaslr_module_offset
+                else:
+                    self.mod_end_addr = self.mod_start_addr + 0x80000000
+            elif ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
                 if self.kaslr_enabled:
                     self.mod_end_addr = self.mod_start_addr + 0x8000000 + self.kaslr_module_offset
                 else:
@@ -2596,6 +2610,12 @@ class RamDump():
             return None
         else:
             return s[0]
+
+    def struct_field_addr(self, addr, the_type, field):
+        try:
+            return self.gdbmi.field_offset(the_type, field) + addr
+        except gdbmi.GdbMIException:
+            pass
 
     # reads a 4 or 8 byte field from a structure
     def read_structure_field(self, address, struct_name, field):
