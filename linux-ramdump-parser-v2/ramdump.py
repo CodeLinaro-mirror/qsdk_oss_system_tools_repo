@@ -857,19 +857,12 @@ class RamDump():
             # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
             # Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
             self.kaslr_enabled = True
-            module_offset_former = self.read_u32(0x086006BC, False)
-            module_offset_latter = self.read_u32(0x086006C0, False)
-
-            # concatenating module offset values using f string
-            self.kaslr_module_offset = int(f'0x{module_offset_latter:x}{module_offset_former:x}', 16)
+            module_offset = self.read_word(0x086006BC, False)
+            self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
             print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
-
-            kernel_offset_former = self.read_u32(0x086006C4, False)
-            kernel_offset_latter = self.read_u32(0x086006C8, False)
-
-            # concatenating kernel offset values using f string
-            self.kaslr_kernel_offset = int(f'0x{kernel_offset_latter:x}{kernel_offset_former:x}', 16)
-            print_out_str("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
+            kernel_offset = self.read_word(0x086006C4, False)
+            self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
+            print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
 
         if not self.get_config():
             print_out_str('!!! Could not get saved configuration')
