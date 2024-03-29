@@ -1657,7 +1657,7 @@ class RamDump():
                     if self.kaslr_enabled:
                         seg_info_address = self.read_u64(seg_info)
                     else:
-                        seg_info_address = self.read_u64(seg_info)
+                        seg_info_address = self.read_u32(seg_info)
 
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
@@ -1671,7 +1671,14 @@ class RamDump():
 
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
                         self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
-                    seg_info = seg_info + int (self.seg_info_offset, 16)
+                    if (self.isELF64()):
+                        #seg_info will store the base address of plat_env
+                        #Next following each 8 bytes stores each next index address of plat_env in 64 bit case
+                        seg_info = seg_info + 8
+                    else:
+                        #seg_info will store the base address of plat_env
+                        #Next following each 4 bytes stores each next index address of plat_env in 32 bit case
+                        seg_info = seg_info + 4
 
                 self.gdbmi.close()
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
@@ -1971,7 +1978,7 @@ class RamDump():
         for ram in self.ebi_files:
             ebi_name = os.path.basename(ram[3])
             entry = entry + '&' + ebi_name.split('.')[0] + 'File '
-        entry = entry + '&ELFFile &T32DEM0DIR'
+        entry = entry + '&ELFFile'
         startup_script.write('{0}\n'.format(entry).encode('ascii', 'ignore'))
         startup_script.write('&T32DEMODIR=OS.PDD()\n'.encode('ascii', 'ignore'))
         check = 'IF '
@@ -2065,16 +2072,10 @@ class RamDump():
             startup_script.write(
                 'menu.reprogram &T32DEMODIR\\kernel\\linux\\awareness\\linux.men\n'.encode('ascii', 'ignore'))
         else:
-            if self.arm64:
-                startup_script.write(
-                     'task.config &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
-                startup_script.write(
-                     'menu.reprogram &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
-            else:
-                startup_script.write(
-                    'task.config &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
-                startup_script.write(
-                    'menu.reprogram &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
+            startup_script.write(
+                'task.config &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux3.t32\n'.encode('ascii', 'ignore'))
+            startup_script.write(
+                'menu.reprogram &T32DEMODIR\\kernel\\linux\\linux-3.x\\linux.men\n'.encode('ascii', 'ignore'))
 
         startup_script.write('task.dtask\n'.encode('ascii', 'ignore'))
         startup_script.write(
