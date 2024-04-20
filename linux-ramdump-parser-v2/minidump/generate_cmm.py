@@ -22,6 +22,7 @@ parser = parser = OptionParser()
 parser.add_option('--config',dest='config',default='32',help='CONFIG is set to 32 or 64. Default is 32 bit')
 parser.add_option('--arch',dest='arch',default='ipq807x',help='arch is set to ipq807x or ipq60xx. Default is ipq807x')
 parser.add_option('--kver',dest='kver',default='4.4',help='kver is set to 4.4 or 5.4. Default is 4.4')
+parser.add_option('--kaslr',dest='kaslr',default='false',help='KASLR enabled is set to FALSE as defualt')
 parser.add_option('--vmpath',dest='vmpath',help='Path to vmlinux.elf file.')
 parser.add_option('--path',dest='path',help='Path to dump binaries.')
 parser.add_option('--modpath',dest='mpath',help='Path to load modules.')
@@ -209,7 +210,30 @@ for i in range(len(onlyfiles)):
 		base_name = file_base_name(onlyfiles[i])
 	startup_cmm.write("data.load.binary" + " " + onlyfiles[i] + " "+ " 0x" + base_name + "\n")
 
-startup_cmm.write("data.load.elf" + " " + vmlinux + " "+ "/Nocode" + "\n")
+def read_u32(imem_path, offset):
+    try:
+        with open(imem_path, 'rb') as file:
+            file.seek(offset)
+            offset = file.read(4)
+            little_offset = int.from_bytes(offset, byteorder="little", signed=False)
+            little_offset = '{:08x}'.format(little_offset)
+            if len(little_offset) < 8:
+                little_offset += '00' * (8 - len(little_offset))
+            return little_offset
+    except IOError as e:
+            print("Error: Unable to open file or file not found. {}".format(e))
+
+# If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
+# Kernel and module offset details are stored in the below IMEM region
+# Module offset in 0x086006BC - 0x086006C0 (8 bytes)
+# Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
+if options.kaslr == "true":
+    kernel_offset_former = read_u32("8600000.BIN", 0x6C4)
+    kernel_offset_latter = read_u32("8600000.BIN", 0x6C8)
+    kaslr_kernel_offset = kernel_offset_latter + kernel_offset_former
+    startup_cmm.write("data.load.elf {0}  0x{1} /nocode\n".format(vmlinux, kaslr_kernel_offset))
+else:
+    startup_cmm.write("data.load.elf" + " " + vmlinux + " "+ "/Nocode" + "\n")
 
 pgd_int = int(PGD, 16)
 
