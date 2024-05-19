@@ -643,6 +643,9 @@ class RamDump():
         self.ath12k = ath12k
         self.kaslr_enabled = False
 
+        if self.ko_path is not None and os.path.isfile(self.ko_path):
+            self.ko_path = os.path.dirname(self.ko_path)
+
         if self.ath11k is not None and self.ath12k is not None:
             print_out_str("ath11k and ath12k modules cannot be parsed together. Please check on arguments passed\n")
             return
@@ -662,12 +665,12 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
             else:
                 self.ath11k_gnu_linkonce_this_size = None
                 self.seg_info_offset = None
-                print_out_str("ath11k module file not present")
+                print_out_str("RDDM Error !!! MODULE_NOT_FOUND : ath11k module file not present")
 
         if self.Is_Ath12k() and readelf_path is not None:
             self.ath12k_path = self.ko_path + "/ath12k.ko"
@@ -679,12 +682,12 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
             else:
                 self.ath12k_gnu_linkonce_this_size = None
                 self.seg_info_offset = None
-                print_out_str("ath12k module file not present")
+                print_out_str("RDDM Error !!! MODULE_NOT_FOUND : ath12k module file not present")
 
         if self.phys_offset is None:
             self.get_hw_id()
@@ -1427,25 +1430,26 @@ class RamDump():
         name_list_walker.walk(self.mod_start, self.get_mod_func)
 
     def get_rddm_dump(self, outdir):
+        qrtr_node_count = 0
         if self.Is_Ath11k():
             if os.path.isfile(self.ath11k_path):
                 if self.IsModuleStripped(self.ath11k_path):
-                    print_out_str('ath11k.ko module is stripped. Please run with unstripped Module')
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ath11k.ko module is stripped. Please run with unstripped Module')
                     return
                 else:
                     print_out_str('ath11k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath11k")
 
             if self.mod_list_addr is None:
-                print_out_str('Unable to get ath11k module address')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get ath11k module address')
                 return
 
             if self.ath11k_gnu_linkonce_this_size is None:
-                print_out_str('Unable to get gnu linkonce size')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get gnu linkonce size')
                 return
 
             if self.seg_info_offset is None:
-                print_out_str('Unable to get segment info address')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                 return
 
             seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath11k_gnu_linkonce_this_size, 16)
@@ -1454,11 +1458,11 @@ class RamDump():
 
             self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.ath11k_path)
             self.gdbmi.open()
-
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
             dump_device_id = hex(self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "chip_id"))
             if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+                qrtr_node_count += 1
 
                 dump_path = os.path.join(outdir, "rddm_dump")
 
@@ -1471,6 +1475,7 @@ class RamDump():
                 self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, True)
                 self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, False)
 
+            print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
             self.gdbmi.close()
 
             self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
@@ -1478,17 +1483,17 @@ class RamDump():
         elif self.Is_Ath12k():
             if os.path.isfile(self.ath12k_path):
                 if self.IsModuleStripped(self.ath12k_path):
-                    print_out_str('ath12k.ko module is stripped. Please run with unstripped Module')
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ath12k.ko module is stripped. Please run with unstripped Module')
                     return
                 else:
                     print_out_str('ath12k.ko module is unstripped. Proceeding with Bin File extraction')
             self.get_module("ath12k")
             if self.mod_list_addr is None:
-                print_out_str('Unable to get ath11k module address')
+                print_out_str('RDDM Error !!! FIELD_NOTFOUND : Unable to get ath11k module address')
                 return
 
             if self.ath12k_gnu_linkonce_this_size is None:
-                print_out_str('Unable to get gnu linkonce size')
+                print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get gnu linkonce size')
                 return
 
             print_out_str('--------------------- ATH12k Structure Details Extraction STARTED---------------------------------')
@@ -1517,6 +1522,7 @@ class RamDump():
                     print_out_str('Devide_ID_{0} = {1}'.format(i,dump_device_id))
 
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         print_out_str('!!! Found RDDM dumps with bus id {0}'.format(bus_id))
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(bus_id))
 
@@ -1533,7 +1539,6 @@ class RamDump():
 
                 self.gdbmi.close()
 
-                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
             else:
@@ -1543,11 +1548,11 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
 
                 if self.seg_info_offset is None:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get segment info address')
                     return
                 seg_info = self.mod_list_addr + int (self.seg_info_offset, 16) + int (self.ath12k_gnu_linkonce_this_size, 16)
 
@@ -1563,6 +1568,7 @@ class RamDump():
                 print_out_str('Devide_ID = {0}'.format(dump_device_id))
                 if qrtr_node_id != 0:
                     print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
+                    qrtr_node_count += 1
 
                     dump_path = os.path.join(outdir, "rddm_dump")
 
@@ -1580,9 +1586,11 @@ class RamDump():
 
                 self.gdbmi.close()
 
-                print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()
+
+            print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
+            print_out_str('--------------------- ATH12k Structure Details Extraction ENDED---------------------------------')
         else:
             plat_env_index = self.addr_lookup('plat_env_index')
 
@@ -1602,6 +1610,7 @@ class RamDump():
                     dump_device_id = hex(self.read_structure_field(plat_env, "struct cnss_plat_data", "device_id"))
 
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1614,27 +1623,27 @@ class RamDump():
             else:
                 # cnss variables migrated to ipq_cnss2.ko module
                 if self.ko_path is None:
-                    print_out_str('Provide ko module as --ko-path <KoModulePath> if plat_env exists in ipq_cnss2.ko')
+                    print_out_str('RDDM Error !!! MODULE_NOT_FOUND : Provide ko module as --ko-path <KoModulePath> if plat_env exists in ipq_cnss2.ko')
                     return
                 else:
                     self.cnss_path = self.ko_path + "/ipq_cnss2.ko"
                     if not os.path.isfile(self.cnss_path):
-                        print_out_str('ipq_cnss2.ko module does not exists in ko module path.')
+                        print_out_str('RDDM Error !!! MODULE_NOT_FOUND : ipq_cnss2.ko module does not exists in ko module path.')
                         return
 
                 if self.IsModuleStripped(self.cnss_path):
-                    print_out_str('ipqcnss2.ko module is stripped. Please run with unstripped Module')
+                    print_out_str('RDDM Error !!! MODULE_STRIPPED : ipqcnss2.ko module is stripped. Please run with unstripped Module')
                     return
                 else:
                     print_out_str('ipqcnss2.ko module is unstripped. Proceeding with Bin File extraction')
 
                 if self.readelf_path is None:
-                    print_out_str('readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
+                    print_out_str('RDDM Error !!! READELF_PATH_NOTFOUND : readelf file is required for Pine bins extraction. Provide --readelf-path <ReadELFPath>')
                     return
 
                 self.get_module("ipq_cnss2")
                 if self.mod_list_addr is None:
-                    print_out_str('Unable to get ipq_cnss2 module address')
+                    print_out_str('RDDM Error !!! FIELD_NOT_FOUND : Unable to get ipq_cnss2 module address')
                     return
 
                 self.gdbmi.close()
@@ -1651,12 +1660,12 @@ class RamDump():
                 try:
                     self.seg_info_offset = ret_nm[2:].strip().split(' ')[0]
                 except:
-                    print_out_str('Unable to get segment info address')
+                    print_out_str('RDDM Error : FIELD_NOT_FOUND : Unable to get segment info address')
                     return
 
                 self.cnss_gnu_linkonce_this_size = self.get_gnu_linkonce_size(self.readelf_path, self.cnss_path)
                 if self.cnss_gnu_linkonce_this_size is None:
-                    print_out_str('Unable to get cnss gnu linkonce size')
+                    print_out_str('RDDM Error : FIELD_NOT_FOUND: Unable to get cnss gnu linkonce size')
                     return
 
                 plat_env_index_address = self.mod_list_addr + int (self.cnss_gnu_linkonce_this_size, 16)
@@ -1676,6 +1685,7 @@ class RamDump():
                     qrtr_node_id = self.read_structure_field(seg_info_address, "struct cnss_plat_data", "qrtr_node_id")
                     dump_device_id = hex(self.read_structure_field(seg_info_address, "struct cnss_plat_data", "device_id"))
                     if qrtr_node_id != 0:
+                        qrtr_node_count += 1
                         dump_path = os.path.join(outdir, "rddm_dump_id_{0}".format(qrtr_node_id))
 
                         if os.path.exists(dump_path):
@@ -1694,6 +1704,7 @@ class RamDump():
                         #Next following each 4 bytes stores each next index address of plat_env in 32 bit case
                         seg_info = seg_info + 4
 
+                print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
                 self.gdbmi.close()
                 self.gdbmi = gdbmi.GdbMI(self.gdb_path, self.vmlinux)
                 self.gdbmi.open()

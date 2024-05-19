@@ -547,11 +547,6 @@ if __name__ == '__main__':
     dump.get_smp2p_logging(options.outdir)
     print_out_str('\n--------- end smp2p log parsing ---------\n')
 
-    if options.rddm:
-        print_out_str('\n--------- begin RDDM extraction ---------\n')
-        dump.get_rddm_dump(options.outdir)
-        print_out_str('\n--------- end RDDM extraction ---------\n')
-
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
         print_out_str(
@@ -589,6 +584,22 @@ if __name__ == '__main__':
         sys.stderr.write("%fs\n" % (time.time() - before))
         sys.stderr.flush()
         flush_outfile()
+
+    if options.rddm:
+        before = time.time()
+        sys.stderr.write("\n")
+        sys.stderr.write("    FW BIN GENERATION")
+        sys.stderr.write("\n")
+        sys.stderr.write("    [1/1] --begin-rddm_extraction ... ")
+        print_out_str('\n--------- begin RDDM extraction ---------\n')
+        try:
+            dump.get_rddm_dump(options.outdir)
+        except:
+            print_out_str('RDDM Error !!! RDDM_EXTRACTION FAILED : Exception while extracting FW Bins')
+            print_out_exception()
+            sys.stderr.write("FAILED! ")
+        print_out_str('\n--------- end RDDM extraction ---------\n')
+        sys.stderr.write("%fs\n" % (time.time() - before))
 
     sys.stderr.write("\n")
 
