@@ -243,8 +243,6 @@ if __name__ == '__main__':
         help='Force the hardware detection to a specific hardware version')
     parser.add_option('', '--parse-qdss', action='store_true',
                       dest='qdss', help='Parse QDSS (deprecated)')
-    parser.add_option('', '--64-bit', action='store_true', dest='arm64',
-                      help='Parse dumps as 64-bit dumps')
     parser.add_option('', '--shell', action='store_true',
                       help='Run an interactive python interpreter with the ramdump loaded')
     parser.add_option('', '--classic-shell', action='store_true',
@@ -330,6 +328,15 @@ if __name__ == '__main__':
 
     system_type = parser_util.get_system_type()
 
+    bitVarCmd = "readelf -h {0} | grep 'Class:' | awk -F ' ' '{{print $2}}'".format(options.vmlinux)
+    Cmd = os.popen(bitVarCmd)
+    output = Cmd.read()
+    index = output.find('ELF64')
+    if index == -1:
+        Isarm64 = False
+    else:
+        Isarm64 = True
+
     if options.autodump is not None:
         if os.path.exists(options.autodump):
             print_out_str(
@@ -399,7 +406,7 @@ if __name__ == '__main__':
     try:
         import local_settings
         try:
-            if options.arm64:
+            if Isarm64:
                 gdb_path = gdb_path or local_settings.gdb64_path
                 nm_path = nm_path or local_settings.nm64_path
                 objdump_path = objdump_path or local_settings.objdump64_path
@@ -471,7 +478,7 @@ if __name__ == '__main__':
                    options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom, options.scan_dump_output, options.kaslr,
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
-                   arm64=options.arm64,
+                   arm64=Isarm64,
                    page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k, ath12k=options.ath12k)
 
     if options.shell or options.classic_shell:
@@ -496,6 +503,9 @@ if __name__ == '__main__':
             shell = code.InteractiveConsole(vars)
             shell.interact()
         sys.exit(0)
+
+    if dump.IsVmlinuxStripped:
+        sys.exit(1)
 
     if not dump.print_command_line():
         print_out_str('!!! Error printing saved command line.')
@@ -600,8 +610,9 @@ if __name__ == '__main__':
             sys.stderr.write("FAILED! ")
         print_out_str('\n--------- end RDDM extraction ---------\n')
         sys.stderr.write("%fs\n" % (time.time() - before))
-
-    sys.stderr.write("\n")
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+        flush_outfile()
 
     if options.t32launcher or options.everything:
         dump.create_t32_launcher()

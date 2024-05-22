@@ -655,6 +655,15 @@ class RamDump():
         else:
             self.scan_dump_output = None
 
+        if self.vmlinux is not None and os.path.isfile(self.vmlinux):
+            if self.IsModuleStripped(self.vmlinux):
+                self.IsVmlinuxStripped = True
+                print_out_str('vmlinux elf is stripped. Please run with unstripped ELF file')
+                return
+            else:
+                self.IsVmlinuxStripped = False
+                print_out_str("vmlinux file is unstripped, proceeding further with extraction")
+
         if self.Is_Ath11k() and readelf_path is not None:
             self.ath11k_path = self.ko_path + "/ath11k.ko"
             if os.path.isfile(self.ath11k_path):
