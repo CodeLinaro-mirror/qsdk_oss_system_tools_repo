@@ -606,6 +606,9 @@ if __name__ == '__main__':
             dump.get_rddm_dump(options.outdir)
         except:
             print_out_str('RDDM Error !!! RDDM_EXTRACTION FAILED : Exception while extracting FW Bins')
+            dump.gdbmi.close()
+            dump.gdbmi = gdbmi.GdbMI(dump.gdb_path, dump.vmlinux)
+            dump.gdbmi.open()
             print_out_exception()
             sys.stderr.write("FAILED! ")
         print_out_str('\n--------- end RDDM extraction ---------\n')
