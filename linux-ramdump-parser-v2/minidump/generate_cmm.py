@@ -16,6 +16,7 @@ from optparse import OptionParser
 import fileinput
 import struct
 import sys
+import subprocess
 
 #Add path options for dump binaries, vmlinux file and modules
 parser = parser = OptionParser()
@@ -146,6 +147,10 @@ for line in reversed(module_input_file.readlines()):
          print_mod_info(name,line)
     if "PGD" in line:
         PGD = line[line.index('=') +1:line.index('\0')]
+    if "DMESG pa" in line:
+        dmesg_address = line[line.index('=') + 1 : line.index('\0')]
+
+
 
 module_output_cmm.close()
 
@@ -228,8 +233,13 @@ def read_u32(imem_path, offset):
 # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
 # Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
 if options.kaslr == "true":
-    kernel_offset_former = read_u32("8600000.BIN", 0x6C4)
-    kernel_offset_latter = read_u32("8600000.BIN", 0x6C8)
+    if options.path:
+        imemFile = os.path.join(options.path,"8600000.BIN")
+    else:
+        imemFile = "8600000.BIN"
+
+    kernel_offset_former = read_u32(imemFile, 0x6C4)
+    kernel_offset_latter = read_u32(imemFile, 0x6C8)
     kaslr_kernel_offset = kernel_offset_latter + kernel_offset_former
     startup_cmm.write("data.load.elf {0}  0x{1} /nocode\n".format(vmlinux, kaslr_kernel_offset))
 else:
@@ -370,6 +380,19 @@ else:
 	mmu_output_cmm.write("D.S A:&pte_entry %LE %Long &pa\n")
 	mmu_output_cmm.write(")\n")
 	mmu_output_cmm.write("RETURN \n")
+
+def extract_Dmesg():
+    dmesg_buffer = dmesg_address + ".BIN"
+    if options.path:
+        dmesg_file = os.path.join(options.path,dmesg_buffer)
+        outputfile = os.path.join(options.path,"dmesg.txt")
+    else:
+        dmesg_file = dmesg_buffer
+        outputfile = "dmesg.txt"
+    subprocess.run(["strings", dmesg_file], stdout=open(outputfile, "w"))
+
+
+extract_Dmesg()
 
 mmu_input_file.close()
 mmu_output_cmm.close()
