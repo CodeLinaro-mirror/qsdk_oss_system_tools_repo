@@ -385,9 +385,13 @@ def extract_Dmesg():
     dmesg_buffer = dmesg_address + ".BIN"
     if options.path:
         dmesg_file = os.path.join(options.path,dmesg_buffer)
+        if not os.path.isfile(dmesg_file):
+            dmesg_file = os.path.join(options.path,dmesg_buffer.upper())
         outputfile = os.path.join(options.path,"dmesg.txt")
     else:
         dmesg_file = dmesg_buffer
+        if not os.path.isfile(dmesg_file):
+            dmesg_file = dmesg_buffer.upper()
         outputfile = "dmesg.txt"
     subprocess.run(["strings", dmesg_file], stdout=open(outputfile, "w"))
 
