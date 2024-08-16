@@ -33,6 +33,10 @@ class DebugImage_v3():
         if ram_dump.Is_Hawkeye():
             core = 0
 
+        if ram_dump.Is_Marina():
+            resetReasonAddrSysdbg = 0x86007b0
+        else:
+            resetReasonAddrSysdbg = 0x86007a4
         print_out_str(
            'Parsing CPU{2} context start 0x{0:08x} end 0x{1:x}'.format(
                                                              start, end, core))
@@ -41,17 +45,17 @@ class DebugImage_v3():
         data = ram_dump.read_cstring(data_address, 8, False)
         print_out_str('Reading from address (0x{1:x}) (WDT String) : {2}'.format(context_dump_pointer_address, data_address, data))
         if data == "sysdbg":
-            data = ram_dump.read_u32(0x86007a4, False)
+            data = ram_dump.read_u32(resetReasonAddrSysdbg, False)
             if data == 0x23:
-                print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(0x86007a4, data))
+                print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(resetReasonAddrSysdbg, data))
             else:
                 data = ram_dump.read_u32(0x8600764, False)
                 print_out_str('Reading from address 0x{0:x} : 0x{1:x}'.format(0x8600764, data))
 
-        print_out_str('\n============OEM Reset Reason Extraction=============\n')
-        data = ram_dump.read_u32(0x86007a4, False)
-        print_out_str('OEM Reset Reason 0x{0:x} : 0x{1:x}'.format(0x86007a4, data))
-        print_out_str('\n========End of OEM Reset Reason Extraction ==========\n')
+        print_out_str('\n============Reset Reason Extraction=============\n')
+        data = ram_dump.read_u32(resetReasonAddrSysdbg, False)
+        print_out_str('Reset Reason 0x{0:x} : 0x{1:x}'.format(resetReasonAddrSysdbg, data))
+        print_out_str('\n========End of Reset Reason Extraction ==========\n')
 
         regs = TZRegDump_v3()
 
