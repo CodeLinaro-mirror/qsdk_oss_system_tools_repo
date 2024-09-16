@@ -67,6 +67,7 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
     offset_thread_group = ramdump.field_offset(
         'struct task_struct', 'thread_group')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
+    offset_threadinfo = ramdump.field_offset('struct task_struct', 'thread_info')
     offset_pid = ramdump.field_offset('struct task_struct', 'pid')
     offset_stack = ramdump.field_offset('struct task_struct', 'stack')
     if (ramdump.kernel_version >= (6, 1)):
@@ -86,6 +87,7 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
     seen_threads = []
     while True:
         next_thread_start = thread_group - offset_thread_group
+        next_threadinfo = next_thread_start + offset_threadinfo
         next_thread_comm = next_thread_start + offset_comm
         next_thread_pid = next_thread_start + offset_pid
         next_thread_stack = next_thread_start + offset_stack
@@ -112,7 +114,9 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
         if threadinfo is None:
             return
         task_cpu = ''
-        if task_flag == 0:
+        if (ramdump.kernel_version >= (6, 1)):
+            task_cpu = ramdump.read_int(next_threadinfo + offset_cpu)
+        elif task_flag == 0:
             task_cpu = ramdump.read_int(threadinfo + offset_cpu)
         else:
             task_cpu = ramdump.read_int(next_thread_cpu)
