@@ -381,25 +381,41 @@ class TZRegDump_v3():
             address_pattern_64 = "[0-9a-fx]{10,18}"
             address_pattern_32 = "[0-9a-fx]{8,10}"
             digit = "[0-9]*"
-            pattern = "X\[" + digit + "\], X_index_value is: " + digit + " ;high 32bits value is: .*; low 32bits value is: .*"
             array = []
             with open(file_path, 'r') as Lines:
                 for partial in Lines:
-                        if (re.search(PCLRPattern, partial)):
-                                x = re.findall(address_pattern_64, partial)
-                                pc = x[0]
-                                pc = int(pc, 16)
-                                array.append(pc)
-                        elif (re.search(pattern, partial)):
-                                regx = re.findall("X\[(\d*)\]", partial)
-                                x = re.findall(address_pattern_32, partial)
-                                if not x:
-                                    address = "0x0"
-                                else:
-                                    address = x[1]
-
-                                address = int(address, 16)
-                                array.append(address)
+                    if (re.search(PCLRPattern, partial)):
+                        x = re.findall(address_pattern_64, partial)
+                        pc = x[0]
+                        pc = int(pc, 16)
+                        array.append(pc)
+                    elif (self.ramdump.Is_Alder()):
+                        pattern = "X\[" + digit + "\], X_index_value is: " + digit + " ;high 32bits value is: .*; low 32bits value is: .*"
+                        if (re.search(pattern, partial)):
+                            regx = re.findall("X\[(\d*)\]", partial)
+                            x = re.findall(address_pattern_32, partial)
+                            if not x:
+                                highValue = lowValue = '00000000'
+                            else:
+                                highValue, lowValue = x[0], x[1]
+                                highValue = highValue.replace("0x", "")
+                                lowValue = lowValue.replace("0x", "")
+                            if ram_dump.arm64 is None or ram_dump.arm64 == False:
+                                address = lowValue
+                            else:
+                                address = highValue + lowValue
+                            address = int(address, 16)
+                            array.append(address)
+                    elif (self.ramdump.Is_Marina()):
+                        pattern = r"rbank_reg \d+ is: 0x[a-fA-F0-9]{16}"
+                        if (re.search(pattern, partial)):
+                            x = re.findall(address_pattern_64, partial)
+                            if not x:
+                                address = '0000000000000000'
+                            else:
+                                address = x[0]
+                            address = int(address, 16)
+                            array.append(address)
             register_names = sysdbg_dcc_cpu64_register_names[self.version]
             i = 0
             for reg_name, t32_name, print_pc in register_names:
@@ -596,30 +612,41 @@ class TZRegDump_v3():
             address_pattern_64 = "[0-9a-fx]{10,18}"
             address_pattern_32 = "[0-9a-fx]{8,10}"
             digit = "[0-9]*"
-            pattern = "X\[" + digit + "\], X_index_value is: " + digit + " ;high 32bits value is: .*; low 32bits value is: .*"
             array = []
             with open(file_path, 'r') as Lines:
                 for partial in Lines:
-                        if (re.search(PCLRPattern, partial)):
-                                x = re.findall(address_pattern_64, partial)
-                                pc = x[0]
-                                pc = int(pc, 16)
-                                array.append(pc)
-                        elif (re.search(pattern, partial)):
-                                regx = re.findall("X\[(\d*)\]", partial)
-                                x = re.findall(address_pattern_32, partial)
-                                if not x:
-                                    highValue = lowValue = '00000000'
-                                else:
-                                    highValue, lowValue = x[0], x[1]
-                                    highValue = highValue.replace("0x", "")
-                                    lowValue = lowValue.replace("0x", "")
-
-                                if ram_dump.arm64 is None or ram_dump.arm64 == False:
-                                    address = lowValue
-                                else:
-                                    address = highValue + lowValue
-                                address = int(address, 16)
-                                array.append(address)
+                    if (re.search(PCLRPattern, partial)):
+                        x = re.findall(address_pattern_64, partial)
+                        pc = x[0]
+                        pc = int(pc, 16)
+                        array.append(pc)
+                    elif (self.ramdump.Is_Alder()):
+                        pattern = "X\[" + digit + "\], X_index_value is: " + digit + " ;high 32bits value is: .*; low 32bits value is: .*"
+                        if (re.search(pattern, partial)):
+                            regx = re.findall("X\[(\d*)\]", partial)
+                            x = re.findall(address_pattern_32, partial)
+                            if not x:
+                                highValue = lowValue = '00000000'
+                            else:
+                                highValue, lowValue = x[0], x[1]
+                                highValue = highValue.replace("0x", "")
+                                lowValue = lowValue.replace("0x", "")
+                            if ram_dump.arm64 is None or ram_dump.arm64 == False:
+                                address = lowValue
+                            else:
+                                address = highValue + lowValue
+                            address = int(address, 16)
+                            array.append(address)
+                    elif (self.ramdump.Is_Marina()):
+                        pattern = r"rbank_reg \d+ is: 0x[a-fA-F0-9]{16}"
+                        if (re.search(pattern, partial)):
+                            x = re.findall(address_pattern_64, partial)
+                            if not x:
+                                address = '0000000000000000'
+                            else:
+                                address = x[0]
+                                address = address.replace("0x", "")
+                            address = int(address, 16)
+                            array.append(address)
             array = tuple(array)
             self.core_scandump_regs.append(TZCpuCtx_v3(self.version, array, ram_dump, register_name))
