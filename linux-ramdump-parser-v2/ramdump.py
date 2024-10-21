@@ -871,12 +871,20 @@ class RamDump():
             # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
             # Kernel and module offset details are stored in the below IMEM region
             # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
-            # Kernel offset in 0x086006C4 - 0x086006C8 (8 bytes)
+            # Kernel offset to be read from address :
+            #       0x086006C8 => If magic code 0XCDEFCDEF is added at 0x086006C4 in IMEM.BIN
+            #       0x086006C4 => If magic code 0XCDEFCDEF is not added at 0x086006C4 in IMEM.BIN
             self.kaslr_enabled = True
             module_offset = self.read_word(0x086006BC, False)
             self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
             print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
-            kernel_offset = self.read_word(0x086006C4, False)
+            expected_magic_code = int("0xCDEFCDEF",16)
+            dump_magic_code = self.read_int(0x086006C4, False)
+            if expected_magic_code == dump_magic_code:
+                kernel_offset_address = 0x086006C8
+            else:
+                kernel_offset_address = 0x086006C4
+            kernel_offset = self.read_word(kernel_offset_address, False)
             self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
             print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
 
