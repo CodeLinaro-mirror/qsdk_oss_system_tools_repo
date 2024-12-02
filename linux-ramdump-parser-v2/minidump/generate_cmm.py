@@ -113,7 +113,10 @@ else:
         dump2mem_extract("minidump2mem.bin")
     module_input_file=open("MOD_INFO.txt")
 
-module_output_cmm=open("Load_modules.cmm","w")
+if options.path:
+    module_output_cmm=open(os.path.join(options.path,"Load_modules.cmm"), "w")
+else:
+    module_output_cmm=open("Load_modules.cmm","w")
 
 umac = None
 qca_ol = None
@@ -204,16 +207,20 @@ if options.path:
 else:
     onlyfiles = (glob.glob("*.BIN"))
 
-startup_cmm=open("startup_t32.cmm","w")
+if options.path:
+    startup_cmm=open(os.path.join(options.path,"startup_t32.cmm"), "w")
+else:
+    startup_cmm=open("startup_t32.cmm","w")
 startup_cmm.write("sys.cpu CORTEXA53 " + "\n")
 startup_cmm.write("sys.up" + "\n");
+startup_cmm.write("&BINDIR=OS.PWD()" + "\n");
 
 for i in range(len(onlyfiles)):
 	if options.path:
 		base_name = file_base_name(os.path.basename(onlyfiles[i]))
 	else:
 		base_name = file_base_name(onlyfiles[i])
-	startup_cmm.write("data.load.binary" + " " + onlyfiles[i] + " "+ " 0x" + base_name + "\n")
+	startup_cmm.write("data.load.binary" + " " + "&BINDIR\\" + base_name + ".BIN "+ " 0x" + base_name + "\n")
 
 def read_u32(imem_path, offset):
     try:
@@ -241,13 +248,16 @@ if options.kaslr == "true":
     kernel_offset_former = read_u32(imemFile, 0x6C4)
     kernel_offset_latter = read_u32(imemFile, 0x6C8)
     kaslr_kernel_offset = kernel_offset_latter + kernel_offset_former
-    startup_cmm.write("data.load.elf {0}  0x{1} /nocode\n".format(vmlinux, kaslr_kernel_offset))
+    startup_cmm.write("data.load.elf &BINDIR\{0}  0x{1} /nocode\n".format(elf, kaslr_kernel_offset))
 else:
-    startup_cmm.write("data.load.elf" + " " + vmlinux + " "+ "/Nocode" + "\n")
+    startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + elf + " "+ "/Nocode" + "\n")
 
 pgd_int = int(PGD, 16)
 
-mmu_output_cmm=open("Load_mmu.cmm","w")
+if options.path:
+    mmu_output_cmm=open(os.path.join(options.path,"Load_mmu.cmm"), "w")
+else:
+    mmu_output_cmm=open("Load_mmu.cmm","w")
 
 if options.path:
 	mmu_input_file=open(os.path.join(options.path,"MMU_INFO.txt"))
