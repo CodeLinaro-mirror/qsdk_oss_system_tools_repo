@@ -2882,8 +2882,19 @@ class RamDump():
     def iter_cpus(self):
         return range(self.get_num_cpus())
 
+    def is_thread_info_in_task(self):
+        return self.field_offset('struct task_struct', 'thread_info')
+
+    def get_thread_info_addr(self, task_addr):
+        if self.is_thread_info_in_task() is not None:
+            thread_info_address = task_addr + self.field_offset('struct task_struct', 'thread_info')
+        else:
+            thread_info_ptr = task_addr + self.field_offset('struct task_struct', 'stack')
+            thread_info_address = self.read_word(thread_info_ptr, True)
+        return thread_info_address
+
     def thread_saved_field_common_32(self, task, reg_offset):
-        thread_info = self.read_word(task + self.field_offset('struct task_struct', 'stack'))
+        thread_info = self.get_thread_info_addr(task)
         cpu_context_offset = self.field_offset('struct thread_info', 'cpu_context')
         val = self.read_word(thread_info + cpu_context_offset + reg_offset)
         return val
