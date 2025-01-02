@@ -55,7 +55,7 @@ class memtracer_summary(RamParser):
            symbol = None
            symtab_st_size = None
 
-           if (self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= stack_trace_addr and stack_trace_addr <= self.ramdump.mod_end_addr) and stack_trace_addr <= self.ramdump.phys_offset):
+           if (self.ramdump.isELF32() and self.ramdump.Is_Hawkeye() and not (self.ramdump.mod_start_addr <= stack_trace_addr and stack_trace_addr <= self.ramdump.mod_end_addr)):
               r = self.ramdump.unwind.get_module_name_from_addr(stack_trace_addr)
            else:
               r = self.ramdump.unwind_lookup(stack_trace_addr)
