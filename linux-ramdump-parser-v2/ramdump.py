@@ -2942,12 +2942,12 @@ class RamDump():
             return False
 
     def get_gnu_linkonce_size(self, elf_path, bin_path):
-        cmd = '{0} -S {1}'.format(elf_path, bin_path)
+        cmd = '{0} -S -W {1}'.format(elf_path, bin_path)
         fd = os.popen(cmd)
         rd = fd.read()
         try:
             # get string after this word from readelf output
-            part = rd.split(".gnu.linkonce.thi")[1]
+            part = rd.split(".gnu.linkonce.this_module")[1]
             temp = re.sub('\s+', ' ', part ).strip()
             f_hex = temp.split(" ")[3]
             #get size of .gnu.linkonce.thi from section header
