@@ -751,6 +751,7 @@ class RamDump():
         self.CONFIG_SLUB_DEBUG_ON = False
         self.CONFIG_HIGHMEM = False
         self.CONFIG_DONT_MAP_HOLE_AFTER_MEMBANK0 = False
+        self.CONFIG_DEBUG_INFO_REDUCED = False
 
         if not self.get_version_from_vmlinux():
             print_out_str('!!! Could not get the Linux version from vmlinux!')
@@ -893,6 +894,13 @@ class RamDump():
             print_out_str(
                 '!!! This is really bad and probably indicates RAM corruption')
             print_out_str('!!! Some features may be disabled!')
+
+        # CONFIG_DEBUG_INFO_REDUCED will reduce debug info and dumps cannot be parsed.
+        if self.CONFIG_DEBUG_INFO_REDUCED:
+            print_out_str("CONFIG_DEBUG_INFO_REDUCED=y. Debug info is not present. Could not parse the dumps further")
+            print_out_str("Exiting now!!! Disable CONFIG_DEBUG_INFO_REDUCED for successfull parsing")
+            sys.exit(1)
+
         self.unwind = self.Unwinder(self)
 
         self.next_mod_offset = self.field_offset('struct module','list')
@@ -1034,6 +1042,9 @@ class RamDump():
         os.remove(zconfig.name)
         for l in t:
             self.config.append(l.rstrip().decode('ascii', 'ignore'))
+
+        if self.is_config_defined('CONFIG_DEBUG_INFO_REDUCED'):
+            self.CONFIG_DEBUG_INFO_REDUCED = True
 
         if self.is_config_defined('CONFIG_SPARSEMEM'):
             self.CONFIG_SPARSEMEM = True
