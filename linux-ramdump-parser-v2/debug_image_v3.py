@@ -35,6 +35,8 @@ class DebugImage_v3():
 
         if ram_dump.Is_Marina():
             resetReasonAddrSysdbg = 0x86007b0
+        elif ram_dump.is_config_defined('CONFIG_IPQ_APSS_8074') or ram_dump.is_config_defined('CONFIG_IPQ_APSS_807x'):
+            resetReasonAddrSysdbg = 0x8600024
         else:
             resetReasonAddrSysdbg = 0x86007a4
         print_out_str(
