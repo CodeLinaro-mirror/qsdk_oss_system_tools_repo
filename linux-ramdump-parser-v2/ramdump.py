@@ -769,6 +769,28 @@ class RamDump():
             else:
                 self.page_offset = text_addr - 0x80000
         print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
+
+        if is_kaslr_enabled:
+            # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
+            # Kernel and module offset details are stored in the below IMEM region
+            # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
+            # Kernel offset to be read from address :
+            #       0x086006C8 => If magic code 0XCDEFCDEF is added at 0x086006C4 in IMEM.BIN
+            #       0x086006C4 => If magic code 0XCDEFCDEF is not added at 0x086006C4 in IMEM.BIN
+            self.kaslr_enabled = True
+            module_offset = self.read_word(0x086006BC, False)
+            self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
+            print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
+            expected_magic_code = int("0xCDEFCDEF",16)
+            dump_magic_code = self.read_int(0x086006C4, False)
+            if expected_magic_code == dump_magic_code:
+                kernel_offset_address = 0x086006C8
+            else:
+                kernel_offset_address = 0x086006C4
+            kernel_offset = self.read_word(kernel_offset_address, False)
+            self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
+            print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
+
         if page_offset is not None:
             print_out_str(
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
@@ -867,27 +889,6 @@ class RamDump():
             print_out_str(
                 '!!! This is a BUG in the parser and should be reported.')
             sys.exit(1)
-
-        if is_kaslr_enabled:
-            # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
-            # Kernel and module offset details are stored in the below IMEM region
-            # Module offset in 0x086006BC - 0x086006C0 (8 bytes)
-            # Kernel offset to be read from address :
-            #       0x086006C8 => If magic code 0XCDEFCDEF is added at 0x086006C4 in IMEM.BIN
-            #       0x086006C4 => If magic code 0XCDEFCDEF is not added at 0x086006C4 in IMEM.BIN
-            self.kaslr_enabled = True
-            module_offset = self.read_word(0x086006BC, False)
-            self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
-            print_out_str ("kaslr_modulel_offset is set as {}".format(hex(self.kaslr_module_offset)))
-            expected_magic_code = int("0xCDEFCDEF",16)
-            dump_magic_code = self.read_int(0x086006C4, False)
-            if expected_magic_code == dump_magic_code:
-                kernel_offset_address = 0x086006C8
-            else:
-                kernel_offset_address = 0x086006C4
-            kernel_offset = self.read_word(kernel_offset_address, False)
-            self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
-            print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
 
         if not self.get_config():
             print_out_str('!!! Could not get saved configuration')
@@ -1206,15 +1207,9 @@ class RamDump():
         # Set Module end address
         if (self.isELF64()):
             if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 4)):
-                if self.kaslr_enabled:
-                    self.mod_end_addr = self.mod_start_addr + 0x80000000 + self.kaslr_module_offset
-                else:
-                    self.mod_end_addr = self.mod_start_addr + 0x80000000
+                self.mod_end_addr = self.mod_start_addr + 0x80000000
             elif ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
-                if self.kaslr_enabled:
-                    self.mod_end_addr = self.mod_start_addr + 0x8000000 + self.kaslr_module_offset
-                else:
-                    self.mod_end_addr = self.mod_start_addr + 0x8000000
+                self.mod_end_addr = self.mod_start_addr + 0x8000000
             else:
                 self.mod_end_addr = self.page_offset
         else:
