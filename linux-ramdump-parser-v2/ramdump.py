@@ -1799,11 +1799,12 @@ class RamDump():
             value = self.read_structure_field(ptr, "struct smp2p_log", "value")
             last_value = self.read_structure_field(ptr, "struct smp2p_log", "last_value")
             status = self.read_structure_field(ptr, "struct smp2p_log", "status")
+            is_threaded_hdlr = self.read_structure_field(ptr, "struct smp2p_log", "is_threaded_hdlr")
 
             ptr = ptr + self.sizeof("struct smp2p_log")
 
             with open(file_path, 'a') as fp:
-                fp.write("timestamp = {0}; global_timer_lo = {1}; global_timer_hi = {2}; value = {3}; last_value = {4}; status = {5};\n".format(timestamp, global_timer_lo, global_timer_hi, value, last_value, status))
+                fp.write("timestamp = {0}; global_timer_lo = {1}; global_timer_hi = {2}; value = {3}; last_value = {4}; status = {5}; is_threaded_hdlr = {6};\n".format(timestamp, global_timer_lo, global_timer_hi, value, last_value, status, is_threaded_hdlr))
 
     def get_glink_logging(self,  outdir):
         RPMLOG_SIZE = 256
