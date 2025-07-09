@@ -28,6 +28,7 @@ from optparse import OptionParser, OptionValueError
 
 import parser_util
 from ramdump import RamDump
+from dcc_sram_parser import dcc_sram_parser_func
 from print_out import print_out_str, set_outfile, print_out_section, print_out_exception, flush_outfile
 
 import gdbmi
@@ -273,6 +274,7 @@ if __name__ == '__main__':
     parser.add_option('', '--kaslr-enabled', action='store_true', dest='kaslr', help='parsing based on kaslr kernel and module offset')
     parser.add_option('', '--console-log', dest='console_log', help='parse console logs to extract functions and modules')
     parser.add_option('', '--scandump-output', dest='scan_dump_output', help='Extract PC, LR and BT for DCC scan Dump')
+    parser.add_option('', '--dcc-sram-parser', action='store_true', dest='dcc_sram_parser', help='Run dcc sram parser', default=False)
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -621,3 +623,7 @@ if __name__ == '__main__':
         dump.create_t32_launcher()
 
     dump.create_crash_launcher()
+    if options.dcc_sram_parser:
+        print_out_str('\n--------- entry DCC SRAM parsing ---------\n')
+        dcc_sram_parser_func(dump)
+        print_out_str('\n--------- exit DCC SRAM parsing ---------\n')
