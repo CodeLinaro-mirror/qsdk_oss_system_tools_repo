@@ -208,7 +208,10 @@ class DebugImage(RamParser):
             client_start = 0x08600658
             client_end = 0x500
             client_name = "Dump"
-            regs.parse_cpu_ctx(3, client_start, client_end, 1, self.ramdump)
+            if(self.ramdump.IsMinidump):
+                regs.parse_cpu_ctxt_minidump(3, client_start, client_end, 1, self.ramdump)
+            else:
+                regs.parse_cpu_ctx(3, client_start, client_end, 1, self.ramdump)
             return
 
         # use the mem_dump_data variable to detect if debug image feature was compiled in,

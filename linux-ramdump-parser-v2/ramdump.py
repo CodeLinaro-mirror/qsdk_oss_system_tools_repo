@@ -609,7 +609,7 @@ class RamDump():
             return False
 
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
-                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, cpu0_reg_path=None, cpu1_reg_path=None,
+                 file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, minidump, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
                  qtf=False, t32_host_system=None, ath11k=None, ath12k=None):
         self.ebi_files = []
@@ -641,6 +641,7 @@ class RamDump():
         self.kernel_version = (0, 0, 0)
         self.ath11k = ath11k
         self.ath12k = ath12k
+        self.IsMinidump = minidump
         self.kaslr_enabled = False
 
         if self.ko_path is not None and os.path.isfile(self.ko_path):
@@ -737,6 +738,7 @@ class RamDump():
         else:
             if not self.auto_parse(file_path):
                 return None
+
         if self.ebi_start == 0:
             self.ebi_start = self.ebi_files[0][1]
         if phys_offset is not None:
@@ -797,7 +799,7 @@ class RamDump():
             self.page_offset = page_offset
         self.setup_symbol_tables()
 
-        if not self.get_version():
+        if not self.IsMinidump and not self.get_version():
             print_out_str('!!! Could not get the Linux version!')
             # self.ebi_start - Starting address of EBICS0.bin
             ebi_filePath = self.ebi_files[0][3]
@@ -963,7 +965,7 @@ class RamDump():
             self.symtab_st_size_offset = self.field_offset('struct elf32_sym', 'st_size')
 
         # Set Module start and end address
-        if not self.set_module_address():
+        if not self.IsMinidump and not self.set_module_address():
             print_out_str("!!! Could not set module address")
             print_out_str("!!! Exiting now")
             sys.exit(0)
@@ -2440,9 +2442,12 @@ class RamDump():
         if (addr is None):
             return ('(Invalid address)', 0x0, None)
 
-        high_mem_addr = self.addr_lookup('high_memory')
-        vmalloc_offset = 0x800000
-        vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
+        if(self.IsMinidump):
+            check_modules=0
+        else:
+            high_mem_addr = self.addr_lookup('high_memory')
+            vmalloc_offset = 0x800000
+            vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
             if (self.kaslr_enabled and self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and ((0xffffffc008000000 + self.kaslr_module_offset + self.kaslr_kernel_offset) <= addr < (0xffffffc010000000 + self.kaslr_module_offset + self.kaslr_kernel_offset)):
@@ -2458,7 +2463,7 @@ class RamDump():
         if (check_modules == 1 and (0xbf000000 <= addr < 0xbfe00000)):
             return self.unwind.get_module_name_from_addr(addr)
 
-        if (addr < self.page_offset):
+        if (addr < self.page_offset and check_modules == 1):
             module_name = self.unwind.get_module_name_from_addr(addr)
             if (module_name is None):
                 return ('(No symbol for address 0x{0:x})'.format(addr), 0x0, None)
