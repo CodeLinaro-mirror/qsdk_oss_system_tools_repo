@@ -474,6 +474,7 @@ class TZRegDump_v3():
                 bt = core_regs[i].regs['x29']
                 fp = core_regs[i].regs['x29']
 
+
             a = ram_dump.unwind_lookup(pc)
             modname = None
             offset = 0
@@ -513,7 +514,8 @@ class TZRegDump_v3():
                 print_out_str('Core {3} LR: {0}+0x{1:x} <0x{2:x}>'.format(symname, offset, lr, i))
 
             print_out_str('')
-            ram_dump.unwind.unwind_backtrace(bt, fp, pc, lr, '')
+            if not self.ramdump.IsMinidump:
+                ram_dump.unwind.unwind_backtrace(bt, fp, pc, lr, '')
             print_out_str('')
 
     def init_regs(self, version, start_addr, end_addr, core, ram_dump):
@@ -523,8 +525,12 @@ class TZRegDump_v3():
 
         self.version = 'default'
         register_name = sysdbg_cpu64_register_names[self.version]
-        self.ncores = ram_dump.get_num_cpus()
         self.ramdump = ram_dump
+        register_name = sysdbg_cpu64_register_names[self.version]
+        if self.ramdump.IsMinidump:
+            self.ncores = 4
+        else:
+            self.ncores = ram_dump.get_num_cpus()
 
         # register_names = sysdbg_cpu64_register_names
         # uint32 status[4]; -- status fields

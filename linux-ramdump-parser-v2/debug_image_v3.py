@@ -76,3 +76,13 @@ class DebugImage_v3():
             regs.dump_core_pc(ram_dump, True)
             print_out_str('======== End of PC/LR and BackTrace for DCC Scan Dump ==========\n')
             regs.dump_dcc_all_regs(ram_dump)
+
+    def parse_cpu_ctxt_minidump(self, version, start, end, client_id, ram_dump):
+        if ram_dump.Is_Hawkeye():
+            core = 0
+        regs = TZRegDump_v3()
+        if regs.init_regs(version, start, end, core, ram_dump) is False:
+            print_out_str('!!! Could not get registers from TZ dump')
+            return
+        regs.dump_core_pc(ram_dump)
+        regs.dump_all_regs(ram_dump)

@@ -24,6 +24,7 @@ import struct
 import re
 import time
 import subprocess
+from minidump.generate_cmm import run_from_ramparser
 from optparse import OptionParser, OptionValueError
 
 import parser_util
@@ -47,6 +48,72 @@ if major != 3:
 
 if '--force-26' in sys.argv:
     sys.argv.remove('--force-26')
+
+def dump2mem_extract(file_name):
+    f = open(file_name, mode="rb")
+
+    '''
+    struct memdump_hdr {
+            uint32_t magic1;
+            uint32_t magic2;
+            uint32_t nos_dumps;
+            uint32_t total_dump_sz;
+            uint64_t dumps_list_info_offset;
+            uint32_t reserved[2];
+    };
+    '''
+    memdump_hdr_fmt = 'IIIIQII'
+    memdump_hdr_struct = struct.Struct(memdump_hdr_fmt)
+    memdump_hdr_size = struct.calcsize(memdump_hdr_fmt)
+
+    memdump_hdr_pdata = f.read(memdump_hdr_size)
+    memdump_hdr_updata = (memdump_hdr_struct).unpack(memdump_hdr_pdata)
+
+    nos_dumps = memdump_hdr_updata[2]
+    dump_list_offset = memdump_hdr_updata[4]
+
+    '''
+    struct memdumps_list_info {
+            char name[20];
+            uint64_t offset;
+            uint64_t size;
+    };
+    '''
+    memdump_list_fmt = '20sQQ'
+    memdump_list_struct = struct.Struct(memdump_list_fmt)
+    memdump_list_size = struct.calcsize(memdump_list_fmt)
+
+    curr_dump_list_offset = dump_list_offset
+    for i in range(0, nos_dumps):
+        f.seek(curr_dump_list_offset)
+        memdump_list_pdata = f.read(memdump_list_size)
+        memdump_list_updata = (memdump_list_struct).unpack(memdump_list_pdata)
+
+        f.seek(memdump_list_updata[1])
+        dump_content = f.read(memdump_list_updata[2])
+        if (sys.version_info.major >= 3):
+            dump_name = memdump_list_updata[0].split(b'\x00')[0].decode("utf-8")
+        else:
+           dump_name = memdump_list_updata[0].split('\x00',1)[0]
+        dump_file = os.path.join(os.path.dirname(file_name), dump_name)
+        dump = open(dump_file, mode="wb")
+        dump.write(dump_content)
+        dump.close()
+        curr_dump_list_offset = curr_dump_list_offset + memdump_list_size
+    f.close()
+
+def read_u32(imem_path, offset):
+    try:
+        with open(imem_path, 'rb') as file:
+            file.seek(offset)
+            offset = file.read(4)
+            little_offset = int.from_bytes(offset, byteorder="little", signed=False)
+            little_offset = '{:08x}'.format(little_offset)
+            if len(little_offset) < 8:
+                little_offset += '00' * (8 - len(little_offset))
+            return little_offset
+    except IOError as e:
+            print("Error: Unable to open file or file not found. {}".format(e))
 
 def q6_wlanfw_get_address_of_symbol(wlanfw):
     if not options.gdb:
@@ -275,6 +342,9 @@ if __name__ == '__main__':
     parser.add_option('', '--console-log', dest='console_log', help='parse console logs to extract functions and modules')
     parser.add_option('', '--scandump-output', dest='scan_dump_output', help='Extract PC, LR and BT for DCC scan Dump')
     parser.add_option('', '--dcc-sram-parser', action='store_true', dest='dcc_sram_parser', help='Run dcc sram parser', default=False)
+    parser.add_option('', '--minidump', action='store_true', dest='minidump', help='Parse minidump CPU contexts')
+    parser.add_option('', '--minidump-path', dest='dump_path', help='Crash Dump location of minidumps')
+    parser.add_option('', '--minidump2mem', action='store_true', dest='minidump2mem', help='extract minidump bins')
 
     for p in parser_util.get_parsers():
         parser.add_option(p.shortopt or '',
@@ -336,8 +406,10 @@ if __name__ == '__main__':
     index = output.find('ELF64')
     if index == -1:
         Isarm64 = False
+        bit_variant = 32
     else:
         Isarm64 = True
+        bit_variant = 64
 
     if options.autodump is not None:
         if os.path.exists(options.autodump):
@@ -373,9 +445,34 @@ if __name__ == '__main__':
 
     print_out_str('using vmlinux file {0}'.format(options.vmlinux))
 
-    if options.ram_addr is None and options.autodump is None:
+    if options.ram_addr is None and options.autodump is None and options.minidump is None:
         print_out_str('Need one of --auto-dump or at least one --ram-file')
         sys.exit(1)
+
+    if options.minidump and options.dump_path:
+        if options.minidump2mem:
+            dump2mem_extract(os.path.join(options.dump_path,"minidump2mem.bin"))
+
+        imemfile = os.path.join(options.dump_path, "8600000.BIN")
+        if not os.path.isfile(imemfile):
+            print_out_str('IMEM not found in crash dump location')
+
+        cpu_info_addr = read_u32(imemfile, 0x658)
+        cpu_info_buffer = cpu_info_addr + ".BIN"
+        cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer)
+
+        if not os.path.isfile(cpu_info_file):
+            cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer.upper())
+
+        if not os.path.isfile(cpu_info_file):
+            print_out_str('CPU INFO Bin not found in crash dump location')
+        cpu_info_size = os.path.getsize(cpu_info_file)
+
+        if options.ram_addr is None:
+            options.ram_addr = [(imemfile, 0x8600000, 0x08605fff)]
+        else:
+            options.ram_addr.append((imemfile, 0x8600000, 0x08605fff))
+        options.ram_addr.append((cpu_info_file, int(cpu_info_addr, 16), int(cpu_info_addr, 16) + cpu_info_size))
 
     if options.ram_addr is not None:
         count = 0
@@ -477,7 +574,7 @@ if __name__ == '__main__':
     scan_dump_output = options.scan_dump_output
 
     dump = RamDump(options.vmlinux, nm_path, gdb_path, readelf_path, ko_path, objdump_path, options.ram_addr,
-                   options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom, options.scan_dump_output, options.kaslr,
+                   options.autodump, options.phys_offset, options.outdir, options.qtf_path, options.custom, options.scan_dump_output, options.kaslr, options.minidump,
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=Isarm64,
@@ -551,13 +648,13 @@ if __name__ == '__main__':
             print_out_str('!!! etr region not found in device-tree')
         print_out_str('--------- end q6_etr extraction ---------')
 
-    print_out_str('\n--------- begin glink log parsing ---------\n')
-    dump.get_glink_logging(options.outdir)
-    print_out_str('\n--------- end glink log parsing ---------\n')
-
-    print_out_str('\n--------- begin smp2p log parsing ---------\n')
-    dump.get_smp2p_logging(options.outdir)
-    print_out_str('\n--------- end smp2p log parsing ---------\n')
+    if not options.minidump:
+        print_out_str('\n--------- begin glink log parsing ---------\n')
+        dump.get_glink_logging(options.outdir)
+        print_out_str('\n--------- end glink log parsing ---------\n')
+        print_out_str('\n--------- begin smp2p log parsing ---------\n')
+        dump.get_smp2p_logging(options.outdir)
+        print_out_str('\n--------- begin smp2p log parsing ---------\n')
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
@@ -622,8 +719,14 @@ if __name__ == '__main__':
     if options.t32launcher or options.everything:
         dump.create_t32_launcher()
 
-    dump.create_crash_launcher()
+    if not options.minidump:
+        dump.create_crash_launcher()
+
     if options.dcc_sram_parser:
         print_out_str('\n--------- entry DCC SRAM parsing ---------\n')
         dcc_sram_parser_func(dump)
         print_out_str('\n--------- exit DCC SRAM parsing ---------\n')
+
+    if options.minidump and options.dump_path:
+        kernel_version = str(dump.kernel_version[0]) + "." + str(dump.kernel_version[1])
+        run_from_ramparser(options.dump_path, options.vmlinux, bit_variant, kernel_version, options.kaslr)
