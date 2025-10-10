@@ -809,6 +809,8 @@ class RamDump():
             if lv is not None:
                 banner_addr_phys = int(hex(lv.start()), 16)
                 banner_addr_virt = self.addr_lookup('linux_banner')
+                if self.kaslr_enabled:
+                    banner_addr_virt = banner_addr_virt - self.kaslr_kernel_offset
                 phys_offset = banner_addr_phys - banner_addr_virt + self.ebi_start + self.page_offset
                 if self.phys_offset != phys_offset:
                     self.phys_offset = phys_offset
@@ -833,6 +835,8 @@ class RamDump():
         # PAGE_OFFSET + TEXT_OFFSET then we know we're using LPAE. For
         # non-LPAE it should be 0x4000 below PAGE_OFFSET + TEXT_OFFSET
         self.swapper_pg_dir = self.addr_lookup('swapper_pg_dir')
+        if self.kaslr_enabled:
+            self.swapper_pg_dir = self.swapper_pg_dir - self.kaslr_kernel_offset
         if self.swapper_pg_dir is None:
             print_out_str('!!! Could not get the swapper page directory!')
             print_out_str(
@@ -1105,6 +1109,8 @@ class RamDump():
 
     def get_version(self):
         banner_addr = self.addr_lookup('linux_banner')
+        if self.kaslr_enabled:
+                    banner_addr = banner_addr - self.kaslr_kernel_offset
         if banner_addr is not None:
             # Don't try virt to phys yet, compute manually
             banner_addr = banner_addr - self.page_offset + self.phys_offset
