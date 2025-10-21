@@ -17,7 +17,7 @@ import fileinput
 import struct
 import sys
 import subprocess
-
+dmesg_size = 0x20000
 def dump2mem_extract(file_name):
     f = open(file_name, mode="rb")
 
@@ -100,6 +100,17 @@ def read_u32(imem_path, offset):
     except IOError as e:
             print("Error: Unable to open file or file not found. {}".format(e))
 
+def read_u64(imem_path, offset):
+    try:
+        with open(imem_path, 'rb') as file:
+            file.seek(offset)
+            data = file.read(8)
+            little_offset = int.from_bytes(data, byteorder="little", signed=False)
+            little_offset = '{:016x}'.format(little_offset)
+            return little_offset
+    except IOError as e:
+        print("Error: Unable to open file or file not found. {}".format(e))
+
 def get_va_to_pa(options, mmu_file, va):
     mmu_file_data = open(mmu_file, 'r')
     for line in reversed(mmu_file_data.readlines()):
@@ -109,17 +120,23 @@ def get_va_to_pa(options, mmu_file, va):
             return pa
     return None
 
-def extract_file(options, file_address, output_file):
+def get_file(options, file_address):
     file_buffer = file_address + ".BIN"
     if options.path:
         input_file = os.path.join(options.path,file_buffer)
         if not os.path.isfile(input_file):
             input_file = os.path.join(options.path,file_buffer.upper())
-        outputfile = os.path.join(options.path, output_file)
     else:
         input_file = file_buffer
         if not os.path.isfile(input_file):
             input_file = file_buffer.upper()
+    return input_file
+
+def extract_file(options, file_address, output_file):
+    input_file = get_file(options, file_address)
+    if options.path:
+        outputfile = os.path.join(options.path, output_file)
+    else:
         outputfile = output_file
     subprocess.run(["strings", input_file], stdout=open(outputfile, "w"))
 
@@ -167,6 +184,8 @@ def generate_cmm(options):
             linux_banner_addr = line[line.index('=') + 1 : line.index('\0')]
         if "TZ_DIAG" in line:
             tz_diag_addr = line[line.index('=') + 1 : line.index('\0')]
+        if "DMESG_READ" in line:
+            dmesg_read = line[line.index('=') + 1 : line.index('\0')]
 
     if options.config == "64":
         t32commands = ["r.s M 0x05",
@@ -230,10 +249,29 @@ def generate_cmm(options):
         apss_elf = os.path.basename(options.vmlinux)
 
     if options.kaslr == "true":
-        kernel_offset_former = read_u32(imemFile, 0x6C4)
-        kernel_offset_latter = read_u32(imemFile, 0x6C8)
-        kaslr_kernel_offset = kernel_offset_latter + kernel_offset_former
-        startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + apss_elf + " 0x" + kaslr_kernel_offset + " /nocode\n")
+        # Choose appropriate read functions based on 32/64-bit configuration
+        if options.config == "64":
+            read_offset = lambda off: read_u64(imemFile, off)
+            magic_read = lambda off: read_u32(imemFile, off)
+        else:
+            read_offset = lambda off: read_u32(imemFile, off)
+            magic_read = lambda off: read_u32(imemFile, off)
+
+        # Read module offset (not currently used but kept for completeness)
+        module_offset_hex = read_offset(0x6BC)
+
+        # Check magic code to decide kernel offset location
+        magic_code_hex = magic_read(0x6C4)
+        if int(magic_code_hex, 16) == 0xCDEFCDEF:
+            kernel_offset_addr = 0x6C8
+        else:
+            kernel_offset_addr = 0x6C4
+
+        # Read kernel offset
+        kaslr_kernel_offset_hex = read_offset(kernel_offset_addr)
+
+        # Write ELF load command with the calculated kernel offset
+        startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + apss_elf + " 0x" + kaslr_kernel_offset_hex + " /nocode\n")
     else:
         startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + apss_elf + " /Nocode" + "\n")
 
@@ -378,7 +416,32 @@ def generate_cmm(options):
         mmu_output_cmm.write(")\n")
         mmu_output_cmm.write("RETURN \n")
 
-    extract_file(options, dmesg_address, "dmesg.txt")
+    if 'dmesg_read' in locals() and dmesg_read is not None:
+        dmesg_read_file = get_file(options, dmesg_read)
+        with open(dmesg_read_file, "rb") as f:
+            tail_add = f.read()
+        read_offset = (int.from_bytes(tail_add, byteorder='little') + dmesg_size) % dmesg_size
+        read_offset = min(read_offset, dmesg_size)
+        dmesg_file = get_file(options, dmesg_address)
+        with open(dmesg_file, "rb") as f:
+            dmesg_lines = f.read()
+        part1 = dmesg_lines[read_offset:]
+        part2 = dmesg_lines[:read_offset]
+        if options.path:
+            outputfile = os.path.join(options.path, "dmesg.txt")
+            dmesg_bin = os.path.join(options.path, "DMESG.BIN")
+        else:
+            outputfile = "dmesg.txt"
+            dmesg_bin = "DMESG.BIN"
+        with open(dmesg_bin, "wb") as f:
+            f.write(part1)
+        with open(dmesg_bin, "ab") as f:
+            f.write(part2)
+        subprocess.run(["strings", dmesg_bin], stdout=open(outputfile, "w"))
+        os.remove(dmesg_bin)
+    else:
+        extract_file(options, dmesg_address, "dmesg.txt")
+
     if 'linux_banner_addr' in locals() and linux_banner_addr is not None:
         linux_banner_pa = get_va_to_pa(options, mmu_file, linux_banner_addr)
         extract_file(options, linux_banner_pa, "linux_banner.txt")
