@@ -179,8 +179,8 @@ def generate_cmm(options):
         "mmu.on",
         "mmu.scan",
         "system.Option MMUSPACES ON",
-        "task.config \\\\winter\\Engineering\\CBSP\Tools\\LT_20240606_169812\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.t32",
-        "menu.reprogram \\\\winter\\Engineering\\CBSP\\Tools\\LT_20240606_169812\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.men",
+        "task.config c:\\T32\demo\\arm64\kernel\linux\linux-3.x\linux3.t32",
+        "menu.reprogram c:\\T32\demo\\arm64\kernel\linux\linux-3.x\linux.men",
         "task.dtask",
         "v.v  %ASCII %STRING linux_banner"]
     else:
@@ -191,8 +191,8 @@ def generate_cmm(options):
             "mmu.on",
             "mmu.scan",
             "system.Option MMUSPACES ON",
-            "task.config \\\\winter\\Engineering\\CBSP\Tools\\LT_20240606_169812\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.t32",
-            "menu.reprogram \\\\winter\\Engineering\\CBSP\\Tools\\LT_20240606_169812\\T32\\demo\\arm\\kernel\\linux\\awareness\\linux.men",
+            "task.config c:\\T32\demo\\arm64\kernel\linux\linux-3.x\linux3.t32",
+            "menu.reprogram c:\\T32\demo\\arm64\kernel\linux\linux-3.x\linux.men",
             "task.dtask",
             "v.v  %ASCII %STRING linux_banner"]
 
