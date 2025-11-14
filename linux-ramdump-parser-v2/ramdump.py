@@ -1356,6 +1356,8 @@ class RamDump():
             padding_size = '0x3ff'
         elif device_id == '0x1104':
             padding_size = '0x1ff'
+        elif device_id == '0x1113':
+            padding_size = '0x3ff'
 
         if self.Is_Ath11k():
             seg_address = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "addr")
