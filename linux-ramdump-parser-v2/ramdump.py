@@ -1385,7 +1385,7 @@ class RamDump():
         index = 0
         paging_seg_count = 0
 
-        while seg_address != 0 and seg_address is not None:
+        while index < num_seg:
             if self.Is_Ath11k():
                 seg_size = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "len")
                 seg_type = self.read_structure_field(dump_seg, "struct ath11k_dump_segment", "type")
@@ -1403,8 +1403,6 @@ class RamDump():
                 next_seg_address = self.read_structure_field(next_dump_seg, "struct cnss_dump_seg", "address")
 
             seg_file = self.__get_section_file(seg_type)
-            if seg_file is None:
-                return
             seg_file = os.path.join(dump_path, seg_file)
 
             if paging_header:
@@ -1424,8 +1422,6 @@ class RamDump():
 
             dump_seg = next_dump_seg
             seg_address = next_seg_address
-            if self.Is_Ath12k() and num_seg is not None and index > num_seg:
-                return
             index = index + 1
 
         if paging_header:
@@ -1498,6 +1494,7 @@ class RamDump():
             self.gdbmi.open()
             qrtr_node_id = self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "qrtr_id")
             dump_device_id = hex(self.read_structure_field(seg_info, "struct ath11k_coredump_segment_info", "chip_id"))
+            num_seg = self.read_structure_field(seg_info_mod, "struct ath11k_coredump_segment_info", "num_seg")
             if qrtr_node_id != 0:
                 print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
                 qrtr_node_count += 1
@@ -1510,8 +1507,8 @@ class RamDump():
                 dump_seg_off = self.field_offset("struct ath11k_coredump_segment_info", "seg")
                 dump_seg = seg_info + dump_seg_off
 
-                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, None, True)
-                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, None, False)
+                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, num_seg, True)
+                self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, num_seg, False)
 
             print_out_str('Total number of attached PCIe : {0}'.format(qrtr_node_count))
             self.gdbmi.close()
@@ -1603,9 +1600,11 @@ class RamDump():
 
                 qrtr_node_id = self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "qrtr_id")
                 dump_device_id = hex(self.read_structure_field(seg_info, "struct ath12k_coredump_segment_info", "chip_id"))
+                num_seg = self.read_structure_field(seg_info_mod, "struct ath12k_coredump_segment_info", "num_seg")
                 print_out_str('Seg_info = {0}'.format(hex(seg_info)))
                 print_out_str('qrtr_node_id = {0}'.format(qrtr_node_id))
                 print_out_str('Devide_ID = {0}'.format(dump_device_id))
+                print_out_str('Num_Seg_{0} = {1}'.format(i,num_seg))
                 if qrtr_node_id != 0:
                     print_out_str('!!! Found RDDM dumps with qrtr node id {0}'.format(qrtr_node_id))
                     qrtr_node_count += 1
@@ -1621,8 +1620,8 @@ class RamDump():
                     print_out_str('dump_seg_{0} = {1}'.format(qrtr_node_id,hex(dump_seg)))
 
 
-                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, None, True)
-                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, None, False)
+                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, num_seg, True)
+                    self.__dump_rddm_segments(dump_seg, dump_path, dump_device_id, num_seg, False)
 
                 self.gdbmi.close()
 
@@ -1733,8 +1732,9 @@ class RamDump():
 
                         dump_data_vaddr = seg_info_address + dump_data_vaddr_off
 
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, True)
-                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, False)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, None, True)
+                        self.__dump_rddm_segments(dump_data_vaddr, dump_path, dump_device_id, None, False)
+
                     if (self.isELF64()):
                         #seg_info will store the base address of plat_env
                         #Next following each 8 bytes stores each next index address of plat_env in 64 bit case
