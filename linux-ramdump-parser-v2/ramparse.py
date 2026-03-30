@@ -674,9 +674,14 @@ if __name__ == '__main__':
     # we called parser.add_option with dest=p.cls.__name__ above,
     # so if the user passed that option then `options' will have a
     # p.cls.__name__ attribute.
-    parsers_to_run = [p for p in parser_util.get_parsers()
-                      if getattr(options, p.cls.__name__)
-                      or (options.everything and not p.optional)]
+    # When minidump is provided, only run parse-debug-info regardless of --everything
+    if options.minidump:
+        parsers_to_run = [p for p in parser_util.get_parsers()
+                          if p.cls.__name__ == 'DebugImage']
+    else:
+        parsers_to_run = [p for p in parser_util.get_parsers()
+                          if getattr(options, p.cls.__name__)
+                          or (options.everything and not p.optional)]
     for i,p in enumerate(parsers_to_run):
         if i == 0:
             sys.stderr.write("\n")
@@ -716,7 +721,7 @@ if __name__ == '__main__':
         sys.stderr.flush()
         flush_outfile()
 
-    if options.t32launcher or options.everything:
+    if (options.t32launcher or options.everything) and not options.minidump:
         dump.create_t32_launcher()
 
     if not options.minidump:
