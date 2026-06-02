@@ -17,6 +17,8 @@ import fileinput
 import struct
 import sys
 import subprocess
+import re
+import random
 dmesg_size = 0x20000
 def dump2mem_extract(file_name):
     f = open(file_name, mode="rb")
@@ -155,16 +157,9 @@ def parse_args(args=None):
     return options
 
 def generate_cmm(options):
-    if options.vmlinux is None or options.path is None:
-        print("Dump Location and vmlinux paths are not provided, Can't proceed\n")
+    if options.path is None:
+        print("Dump Location is not provided, Can't proceed\n")
         sys.exit(1)
-
-    if options.kver == "4.4":
-        PAGE_OFFSET = "0xffffffc000000000"
-        HIGH_MEM = "0xffffffc03f000000"
-    else:
-        PAGE_OFFSET = "0xffffffc010000000"
-        HIGH_MEM = "0xffffffc03f000000"
 
     if options.path:
         if (options.dump2mem):
@@ -186,6 +181,44 @@ def generate_cmm(options):
             tz_diag_addr = line[line.index('=') + 1 : line.index('\0')]
         if "DMESG_READ" in line:
             dmesg_read = line[line.index('=') + 1 : line.index('\0')]
+
+    if options.path:
+        mmu_input_file=open(os.path.join(options.path,"MMU_INFO.txt"))
+        mmu_file = os.path.join(options.path,"MMU_INFO.txt")
+    else:
+        mmu_input_file=open("MMU_INFO.txt","r")
+        mmu_file = "MMU_INFO.txt"
+
+    if 'linux_banner_addr' in locals() and linux_banner_addr is not None:
+        linux_banner_pa = get_va_to_pa(options, mmu_file, linux_banner_addr)
+        extract_file(options, linux_banner_pa, "linux_banner.txt")
+
+        if options.path:
+            linux_banner_file = os.path.join(options.path, "linux_banner.txt")
+        else:
+            linux_banner_file = "linux_banner.txt"
+
+        with open(linux_banner_file, "r") as f:
+            linux_data = f.read()
+
+            # Extract kernel version (major.minor), e.g. "6.6" from "Linux version 6.6.116 ..."
+            kver_match = re.search(r'Linux version (\d+\.\d+)\.', linux_data)
+            if kver_match:
+                options.kver = kver_match.group(1)
+
+            # Extract architecture bits, e.g. "64" from "aarch64" or "32" from "armv7l"
+            arch_match = re.search(r'\b(aarch64)\b', linux_data)
+            if arch_match:
+                options.config = "64"
+            else:
+                options.config = "32"
+
+    if options.kver == "4.4":
+        PAGE_OFFSET = "0xffffffc000000000"
+        HIGH_MEM = "0xffffffc03f000000"
+    else:
+        PAGE_OFFSET = "0xffffffc010000000"
+        HIGH_MEM = "0xffffffc03f000000"
 
     if options.config == "64":
         t32commands = ["r.s M 0x05",
@@ -224,9 +257,17 @@ def generate_cmm(options):
         startup_cmm=open(os.path.join(options.path,"startup_t32.cmm"), "w")
     else:
        startup_cmm=open("startup_t32.cmm","w")
-    startup_cmm.write("sys.cpu CORTEXA53 " + "\n")
+
+    cpu = "CORTEXA53"
+    if options.arch == "ipq9574":
+        cpu = "CORTEXA73"
+    elif options.arch == "ipq5424":
+        cpu = "CORTEXA55"
+
+    startup_cmm.write("sys.cpu " + cpu  + "\n")
     startup_cmm.write("sys.up" + "\n");
     startup_cmm.write("&BINDIR=OS.PWD()" + "\n");
+    startup_cmm.write("LOCAL &ELFFile" + "\n")
 
     for i in range(len(onlyfiles)):
         if options.path:
@@ -247,6 +288,33 @@ def generate_cmm(options):
 
     if options.vmlinux:
         apss_elf = os.path.basename(options.vmlinux)
+        startup_cmm.write("&ELFFile=\"" + apss_elf + "\"\n")
+    else:
+        # If vmlinux is not provided, then create a dialog box to get the input from user
+        if options.path:
+            dialog_file=open(os.path.join(options.path,"elf_select.dlg"), "w")
+        else:
+            dialog_file=open("elf_select.dlg","w")
+
+        dialog_file.write("NAME \"ELF selection\"\n")
+        dialog_file.write("HEADER \"ELF File selection\"\n")
+        dialog_file.write("\tPOS 2. 0. 35. 1.\n")
+        dialog_file.write("\tTEXT \"Select VMLINUX FILE\"\n")
+        dialog_file.write("ELFFile:  EDIT \"\" \"\"\n")
+        dialog_file.write("\tPOS 38. 1. 10. 1.\n")
+        dialog_file.write("\tBUTTON \"Browse\"\n")
+        dialog_file.write("\t(\n")
+        dialog_file.write("\t\tDIALOG.SetFile ELFFile .\\*\n")
+        dialog_file.write("\t)\n\n")
+        dialog_file.write("\tPOS 38. 2. 10. 1.\n")
+        dialog_file.write("\tDEFBUTTON \"OK\" \"CONTinue\"\n")
+        dialog_file.close()
+
+        startup_cmm.write("\nprint \"Choose the vmlinux file in dialog box.\" \n" )
+        startup_cmm.write("DIALOG.view elf_select.dlg\n")
+        startup_cmm.write("STOP\n")
+        startup_cmm.write("&ELFFile=DIALOG.STRing(ELFFile)\n")
+        startup_cmm.write("DIALOG.END\n\n")
 
     if options.kaslr == "true":
         # Choose appropriate read functions based on 32/64-bit configuration
@@ -271,9 +339,9 @@ def generate_cmm(options):
         kaslr_kernel_offset_hex = read_offset(kernel_offset_addr)
 
         # Write ELF load command with the calculated kernel offset
-        startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + apss_elf + " 0x" + kaslr_kernel_offset_hex + " /nocode\n")
+        startup_cmm.write("data.load.elf" + " " + "&ELFFile" + " 0x" + kaslr_kernel_offset_hex + " /nocode\n")
     else:
-        startup_cmm.write("data.load.elf" + " " + "&BINDIR\\" + apss_elf + " /Nocode" + "\n")
+        startup_cmm.write("data.load.elf" + " " + "&ELFFile" + " /Nocode" + "\n")
 
     pgd_int = int(PGD, 16)
 
@@ -281,13 +349,6 @@ def generate_cmm(options):
         mmu_output_cmm=open(os.path.join(options.path,"Load_mmu.cmm"), "w")
     else:
         mmu_output_cmm=open("Load_mmu.cmm","w")
-
-    if options.path:
-        mmu_input_file=open(os.path.join(options.path,"MMU_INFO.txt"))
-        mmu_file = os.path.join(options.path,"MMU_INFO.txt")
-    else:
-        mmu_input_file=open("MMU_INFO.txt","r")
-        mmu_file = "MMU_INFO.txt"
 
     # Generate a "Load_mmu.cmm" script that parses through all the
     # VA to PA entries dumped in MMU_INFO.txt and does the following
@@ -442,9 +503,6 @@ def generate_cmm(options):
     else:
         extract_file(options, dmesg_address, "dmesg.txt")
 
-    if 'linux_banner_addr' in locals() and linux_banner_addr is not None:
-        linux_banner_pa = get_va_to_pa(options, mmu_file, linux_banner_addr)
-        extract_file(options, linux_banner_pa, "linux_banner.txt")
     if 'tz_diag_addr' in locals() and tz_diag_addr is not None:
         tz_diga_pa = get_va_to_pa(options, mmu_file, tz_diag_addr)
         extract_file(options, tz_diga_pa, "tz_diag.txt")
@@ -460,14 +518,59 @@ def generate_cmm(options):
     startup_cmm.write("print " + "\"Click on linux from menu -> Module debugging -> Load Sybols -> browse and load module\"\n")
     startup_cmm.close()
 
+    generate_t32_launch(options)
+
+def generate_t32_launch(options):
+
+    if options.path:
+        launch_config=open(os.path.join(options.path,"t32_config.t32"), "w")
+    else:
+        launch_config=open("t32_config.t32","w")
+
+    launch_config.write('OS=\n')
+    launch_config.write('ID=T32_1000002\n')
+
+    launch_config.write('TMP=C:\\TEMP\n')
+    launch_config.write('HELP=C:\\T32\\pdf\n')
+    launch_config.write('\n')
+    launch_config.write('PBI=SIM\n')
+    launch_config.write('\n')
+    launch_config.write('SCREEN=\n')
+    launch_config.write('FONT=SMALL\n')
+    launch_config.write('HEADER=Trace32-ARM\n')
+    launch_config.write('\n')
+    launch_config.write('PRINTER=WINDOWS\n')
+    launch_config.write('\n')
+    launch_config.write('RCL=NETASSIST\n')
+    launch_config.write('PACKLEN=1024\n')
+    launch_config.write('PORT=%d\n' % random.randint(20000, 30000))
+    launch_config.write('\n')
+
+    launch_config.close()
+
+    if options.path:
+        t32_bat=open(os.path.join(options.path,"launch_t32.bat"), "w")
+    else:
+       t32_bat=open("launch_t32.bat","w")
+
+    if options.config == "64":
+        t32_binary = 'C:\\T32\\bin\\windows64\\t32MARM64.exe'
+    else:
+        t32_binary = 'C:\\T32\\bin\\windows64\\t32MARM.exe'
+
+    t32_bat.write("start " + t32_binary + " -c t32_config.t32 -s startup_t32.cmm\n")
+    t32_bat.close()
+
 def main():
     options = parse_args()
     generate_cmm(options)
 
-def run_from_ramparser(arg1, arg2, arg3, arg4, kaslr=False):
+def run_from_ramparser(arg1, arg2, arg3, arg4, kaslr=False, force_hardware=None):
     args = [f"--path={arg1}", f"--vmlinux={arg2}", f"--config={arg3}", f"--kver={arg4}"]
     if kaslr:
         args.append("--kaslr=true")
+    if force_hardware is not None:
+        args.append(f"--arch=ipq{force_hardware}")
     options = parse_args(args)
     generate_cmm(options)
 

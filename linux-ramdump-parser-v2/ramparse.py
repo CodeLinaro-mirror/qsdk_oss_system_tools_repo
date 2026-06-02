@@ -458,21 +458,32 @@ if __name__ == '__main__':
             print_out_str('IMEM not found in crash dump location')
 
         cpu_info_addr = read_u32(imemfile, 0x658)
-        cpu_info_buffer = cpu_info_addr + ".BIN"
-        cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer)
 
-        if not os.path.isfile(cpu_info_file):
-            cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer.upper())
+        # CPU address is empty in case of live minidump. Skipping the file creation
+        # in such cases, to continue the minidump extraction.
+        if cpu_info_addr != "00000000":
+            cpu_info_buffer = cpu_info_addr + ".BIN"
+            cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer)
 
-        if not os.path.isfile(cpu_info_file):
-            print_out_str('CPU INFO Bin not found in crash dump location')
-        cpu_info_size = os.path.getsize(cpu_info_file)
+            if not os.path.isfile(cpu_info_file):
+                cpu_info_file = os.path.join(options.dump_path,cpu_info_buffer.upper())
+
+            if not os.path.isfile(cpu_info_file):
+                print_out_str('CPU INFO Bin not found in crash dump location')
+
+            cpu_info_size = os.path.getsize(cpu_info_file)
+
+            if options.ram_addr is None:
+                options.ram_addr = [(cpu_info_file, int(cpu_info_addr, 16), int(cpu_info_addr, 16) + cpu_info_size)]
+            else:
+                options.ram_addr.append((cpu_info_file, int(cpu_info_addr, 16), int(cpu_info_addr, 16) + cpu_info_size))
+        else:
+            print_out_str("CPU address is empty, expected in case of live minidump, skipping CPU INFO Bin")
 
         if options.ram_addr is None:
             options.ram_addr = [(imemfile, 0x8600000, 0x08605fff)]
         else:
             options.ram_addr.append((imemfile, 0x8600000, 0x08605fff))
-        options.ram_addr.append((cpu_info_file, int(cpu_info_addr, 16), int(cpu_info_addr, 16) + cpu_info_size))
 
     if options.ram_addr is not None:
         count = 0
@@ -734,4 +745,4 @@ if __name__ == '__main__':
 
     if options.minidump and options.dump_path:
         kernel_version = str(dump.kernel_version[0]) + "." + str(dump.kernel_version[1])
-        run_from_ramparser(options.dump_path, options.vmlinux, bit_variant, kernel_version, options.kaslr)
+        run_from_ramparser(options.dump_path, options.vmlinux, bit_variant, kernel_version, options.kaslr, options.force_hardware)
