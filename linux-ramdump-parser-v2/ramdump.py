@@ -611,8 +611,11 @@ class RamDump():
     def __init__(self, vmlinux_path, nm_path, gdb_path, readelf_path, ko_path, objdump_path, ebi,
                  file_path, phys_offset, outdir, qtf_path, custom, scan_dump_output, is_kaslr_enabled, minidump, cpu0_reg_path=None, cpu1_reg_path=None,
                  hw_id=None,hw_version=None, arm64=False, page_offset=None,
-                 qtf=False, t32_host_system=None, ath11k=None, ath12k=None):
+                 qtf=False, t32_host_system=None, ath11k=None, ath12k=None, minidump_path=None):
         self.ebi_files = []
+        self.minidump_path = minidump_path
+        self.va_to_pa = []
+        self._minidump_ptp_miss_warned = False
         self.phys_offset = None
         self.tz_start = 0
         self.ebi_start = 0
@@ -798,6 +801,9 @@ class RamDump():
                 '[!!!] Page offset was set to {0:x}'.format(page_offset))
             self.page_offset = page_offset
         self.setup_symbol_tables()
+
+        if self.IsMinidump and self.minidump_path:
+            self.load_minidump_files(self.minidump_path)
 
         if not self.IsMinidump and not self.get_version():
             print_out_str('!!! Could not get the Linux version!')
@@ -2361,7 +2367,71 @@ class RamDump():
             virt = self.addr_lookup(virt)
             if virt is None:
                 return
+        if self.IsMinidump:
+            return self.minidump_virt_to_phys(virt)
         return self.mmu.virt_to_phys(virt)
+
+    def load_minidump_files(self, minidump_path):
+        mmu_info_path = os.path.join(minidump_path, 'MMU_INFO.txt')
+        if not os.path.isfile(mmu_info_path):
+            mmu_info_path = os.path.join(minidump_path, 'MMU_INFO.TXT')
+        if not os.path.isfile(mmu_info_path):
+            print_out_str('!!! MMU_INFO.txt not found in minidump path {0}'.format(minidump_path))
+            return
+
+        va_pa_pairs = []
+        with open(mmu_info_path, 'r', errors='ignore') as f:
+            for line in f:
+                m = re.search(r'va=(?:0x)?([0-9a-fA-F]+)\s+pa=(?:0x)?([0-9a-fA-F]+)', line)
+                if m:
+                    va_pa_pairs.append((int(m.group(1), 16), int(m.group(2), 16)))
+
+        existing_starts = set(a[1] for a in self.ebi_files)
+        num_loaded = 0
+        for va, pa in va_pa_pairs:
+            bin_path = os.path.join(minidump_path, '{0:X}.BIN'.format(pa))
+            if not os.path.isfile(bin_path):
+                bin_path = os.path.join(minidump_path, '{0:x}.bin'.format(pa))
+            if not os.path.isfile(bin_path):
+                print_out_str('!!! BIN file for pa {0:x} not found in minidump path'.format(pa))
+                continue
+            size = os.path.getsize(bin_path)
+            if size == 0:
+                continue
+
+            self.va_to_pa.append((va, va + size - 1, pa))
+
+            if pa not in existing_starts:
+                try:
+                    fd = open(bin_path, 'rb')
+                except OSError as e:
+                    print_out_str('!!! Could not open {0}: {1}'.format(bin_path, e))
+                    continue
+                self.ebi_files.append((fd, pa, pa + size - 1, bin_path))
+                existing_starts.add(pa)
+                num_loaded += 1
+
+        self.va_to_pa.sort()
+        print_out_str('Minidump: loaded {0} BIN files, {1} VA-PA mappings from {2}'.format(
+            num_loaded, len(self.va_to_pa), minidump_path))
+        if len(self.va_to_pa) == 0:
+            print_out_str(
+                '!!! WARNING: no VA-PA mappings loaded from MMU_INFO.txt; '
+                'virt_to_phys will return None for all lookups')
+
+    def minidump_virt_to_phys(self, virt):
+        if virt is None:
+            return None
+        for va_start, va_end, pa_start in self.va_to_pa:
+            if va_start <= virt <= va_end:
+                return pa_start + (virt - va_start)
+        if not self._minidump_ptp_miss_warned:
+            print_out_str(
+                '!!! WARNING: minidump_virt_to_phys could not resolve VA {0:x} '
+                '(va_to_pa has {1} entries); further misses will not be logged'.format(
+                    virt, len(self.va_to_pa)))
+            self._minidump_ptp_miss_warned = True
+        return None
 
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -nS ' + self.vmlinux)

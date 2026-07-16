@@ -16,19 +16,37 @@ from parser_util import register_parser, RamParser
 @register_parser('--print-vmstats', 'Print the information similar to /proc/zoneinfo and /proc/vmstat')
 class ZoneInfo(RamParser):
 
+    # matches the kernel's zone_names[] (mm/page_alloc.c), which is what
+    # zone->name actually points to on a full dump
+    zone_type_display_names = {
+        'ZONE_DMA': 'DMA',
+        'ZONE_DMA32': 'DMA32',
+        'ZONE_NORMAL': 'Normal',
+        'ZONE_HIGHMEM': 'HighMem',
+        'ZONE_MOVABLE': 'Movable',
+        'ZONE_DEVICE': 'Device',
+    }
+
     def print_atomic_long_counters(self, stats_array, addr, num):
         for i in range(0, num):
             print_out_str('{0:30}: {1:8}'.format(stats_array[i], self.ramdump.read_word(
                 self.ramdump.array_index(addr, 'atomic_long_t', i))))
 
-    def print_zone_stats(self, zone, vmstat_names, max_zone_stats):
+    def print_zone_stats(self, zone, vmstat_names, max_zone_stats, zone_index=None, zone_type_names=None):
         nr_watermark = self.ramdump.gdbmi.get_value_of('NR_WMARK')
         wmark_names = self.ramdump.gdbmi.get_enum_lookup_table(
             'zone_watermarks', nr_watermark)
 
-        zone_name_offset = self.ramdump.field_offset('struct zone', 'name')
-        zname_addr = self.ramdump.read_word(zone + zone_name_offset)
-        zname = self.ramdump.read_cstring(zname_addr, 12)
+        if self.ramdump.IsMinidump:
+            if zone_type_names is None or zone_index >= len(zone_type_names):
+                zname = 'Zone{0}'.format(zone_index)
+            else:
+                zone_type = zone_type_names[zone_index]
+                zname = self.zone_type_display_names.get(zone_type, zone_type)
+        else:
+            zone_name_offset = self.ramdump.field_offset('struct zone', 'name')
+            zname_addr = self.ramdump.read_word(zone + zone_name_offset)
+            zname = self.ramdump.read_cstring(zname_addr, 12)
 
         zstats_addr = zone + \
             self.ramdump.field_offset('struct zone', 'vm_stat')
@@ -49,6 +67,7 @@ class ZoneInfo(RamParser):
             'NR_VM_ZONE_STAT_ITEMS')
         vmstat_names = self.ramdump.gdbmi.get_enum_lookup_table(
             'zone_stat_item', max_zone_stats)
+
         max_nr_zones = self.ramdump.gdbmi.get_value_of('__MAX_NR_ZONES')
 
         contig_page_data = self.ramdump.addr_lookup('contig_page_data')
@@ -59,12 +78,20 @@ class ZoneInfo(RamParser):
         sizeofzone = self.ramdump.sizeof('struct zone')
         zone = contig_page_data + node_zones_offset
 
+        zone_type_names = None
+        if self.ramdump.IsMinidump:
+            zone_type_names = self.ramdump.gdbmi.get_enum_lookup_table(
+                'zone_type', max_nr_zones)
+
+        zone_index = 0
         while zone < (contig_page_data + node_zones_offset + max_nr_zones * sizeofzone):
             present_pages = self.ramdump.read_word(zone + present_pages_offset)
-            if not not present_pages:
-                self.print_zone_stats(zone, vmstat_names, max_zone_stats)
+            if present_pages:
+                self.print_zone_stats(zone, vmstat_names, max_zone_stats,
+                                       zone_index, zone_type_names)
 
             zone = zone + sizeofzone
+            zone_index += 1
 
         print_out_str('\nGlobal Stats')
         if (self.ramdump.kernel_version[0], self.ramdump.kernel_version[1]) >= (5, 4):

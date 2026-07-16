@@ -589,7 +589,8 @@ if __name__ == '__main__':
                    options.cpu0_reg_path, options.cpu1_reg_path,
                    options.force_hardware, options.force_hardware_version,
                    arm64=Isarm64,
-                   page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k, ath12k=options.ath12k)
+                   page_offset=options.page_offset, qtf=options.qtf, ath11k=options.ath11k, ath12k=options.ath12k,
+                   minidump_path=options.dump_path)
 
     if options.shell or options.classic_shell:
         print("Entering interactive shell mode.")
@@ -685,10 +686,12 @@ if __name__ == '__main__':
     # we called parser.add_option with dest=p.cls.__name__ above,
     # so if the user passed that option then `options' will have a
     # p.cls.__name__ attribute.
-    # When minidump is provided, only run parse-debug-info regardless of --everything
+    # When minidump is provided, only run parse-debug-info regardless of --everything.
+    # --print-vmstats (ZoneInfo) is also allowed to run under minidump when explicitly requested.
     if options.minidump:
         parsers_to_run = [p for p in parser_util.get_parsers()
-                          if p.cls.__name__ == 'DebugImage']
+                          if p.cls.__name__ == 'DebugImage'
+                          or (p.cls.__name__ == 'ZoneInfo' and getattr(options, 'ZoneInfo', False))]
     else:
         parsers_to_run = [p for p in parser_util.get_parsers()
                           if getattr(options, p.cls.__name__)
