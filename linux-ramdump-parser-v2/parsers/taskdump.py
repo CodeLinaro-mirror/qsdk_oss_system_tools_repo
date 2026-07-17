@@ -184,7 +184,36 @@ def dump_thread_group(ramdump, thread_group, task_out, check_for_panic=0):
             break
 
 
+def do_dump_stacks_minidump(ramdump, check_for_panic=0):
+    offset_thread_group = ramdump.field_offset(
+        'struct task_struct', 'thread_group')
+    if offset_thread_group is None:
+        print_out_str('!!! Could not find offset for struct task_struct.thread_group')
+        return
+    named_tasks = ramdump.find_minidump_task_structs()
+    if check_for_panic == 0:
+        task_out = ramdump.open_file('tasks.txt')
+    else:
+        task_out = None
+    if not named_tasks:
+        print_out_str('!!! No individually captured task_struct found in minidump')
+        if check_for_panic == 0:
+            task_out.close()
+        return
+    try:
+        for name, task_addr in named_tasks:
+            thread_group = task_addr + offset_thread_group
+            dump_thread_group(ramdump, thread_group, task_out, check_for_panic)
+    finally:
+        if check_for_panic == 0:
+            task_out.close()
+            print_out_str('---wrote tasks to tasks.txt')
+
+
 def do_dump_stacks(ramdump, check_for_panic=0):
+    if ramdump.IsMinidump:
+        do_dump_stacks_minidump(ramdump, check_for_panic)
+        return
     offset_tasks = ramdump.field_offset('struct task_struct', 'tasks')
     offset_comm = ramdump.field_offset('struct task_struct', 'comm')
     offset_stack = ramdump.field_offset('struct task_struct', 'stack')

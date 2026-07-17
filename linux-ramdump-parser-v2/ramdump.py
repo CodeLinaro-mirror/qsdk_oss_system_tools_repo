@@ -49,6 +49,14 @@ extra_mem_file_names = ['EBI1CS1.BIN', 'DDRCS1.BIN', 'ebi1_cs1.bin', 'DDRCS0_1.B
 
 
 class RamDump():
+    # MOD_INFO.txt names captured task_struct blobs under the task's comm
+    # (process name), unlike module/global captures which use symbol names.
+    # Only named vars matching a known process name are considered task_struct
+    # candidates, to avoid misidentifying a same-sized module/global blob.
+    MINIDUMP_KNOWN_TASK_NAMES = {
+        'procd',
+    }
+
 
     class Unwinder ():
 
@@ -616,6 +624,8 @@ class RamDump():
         self.minidump_path = minidump_path
         self.va_to_pa = []
         self._minidump_ptp_miss_warned = False
+        self.va_to_pa_by_start = {}
+        self.minidump_named_vars = []
         self.phys_offset = None
         self.tz_start = 0
         self.ebi_start = 0
@@ -2412,12 +2422,33 @@ class RamDump():
                 num_loaded += 1
 
         self.va_to_pa.sort()
+        self.va_to_pa_by_start = dict(
+            (va_start, (va_end, pa_start)) for va_start, va_end, pa_start in self.va_to_pa)
         print_out_str('Minidump: loaded {0} BIN files, {1} VA-PA mappings from {2}'.format(
             num_loaded, len(self.va_to_pa), minidump_path))
         if len(self.va_to_pa) == 0:
             print_out_str(
                 '!!! WARNING: no VA-PA mappings loaded from MMU_INFO.txt; '
                 'virt_to_phys will return None for all lookups')
+
+        self.load_minidump_mod_info(minidump_path)
+
+    def load_minidump_mod_info(self, minidump_path):
+        mod_info_path = os.path.join(minidump_path, 'MOD_INFO.txt')
+        if not os.path.isfile(mod_info_path):
+            mod_info_path = os.path.join(minidump_path, 'MOD_INFO.TXT')
+        if not os.path.isfile(mod_info_path):
+            print_out_str('!!! MOD_INFO.txt not found in minidump path {0}'.format(minidump_path))
+            return
+
+        with open(mod_info_path, 'r', errors='ignore') as f:
+            for line in f:
+                m = re.match(r'(\S+)\s+va=([0-9a-fA-F]+)', line.strip())
+                if m:
+                    self.minidump_named_vars.append((m.group(1), int(m.group(2), 16)))
+
+        print_out_str('Minidump: loaded {0} named vars from {1}'.format(
+            len(self.minidump_named_vars), mod_info_path))
 
     def minidump_virt_to_phys(self, virt):
         if virt is None:
@@ -2432,6 +2463,24 @@ class RamDump():
                     virt, len(self.va_to_pa)))
             self._minidump_ptp_miss_warned = True
         return None
+
+    def minidump_captured_size(self, virt):
+        entry = self.va_to_pa_by_start.get(virt)
+        if entry is None:
+            return None
+        va_end, pa_start = entry
+        return va_end - virt + 1
+
+    def find_minidump_task_structs(self):
+        """Named MOD_INFO.txt globals whose name matches a known process
+        (MINIDUMP_KNOWN_TASK_NAMES) — i.e. a single task_struct captured
+        on its own, not reachable by walking init_task's task list."""
+        tasks = []
+        for name, va in self.minidump_named_vars:
+            if name not in self.MINIDUMP_KNOWN_TASK_NAMES:
+                continue
+            tasks.append((name, va))
+        return tasks
 
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -nS ' + self.vmlinux)

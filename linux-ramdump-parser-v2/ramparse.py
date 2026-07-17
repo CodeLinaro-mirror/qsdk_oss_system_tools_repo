@@ -687,11 +687,11 @@ if __name__ == '__main__':
     # so if the user passed that option then `options' will have a
     # p.cls.__name__ attribute.
     # When minidump is provided, only run parse-debug-info regardless of --everything.
-    # --print-vmstats (ZoneInfo) is also allowed to run under minidump when explicitly requested.
+    # --print-vmstats (ZoneInfo) and --print-tasks (DumpTasks) also run by default under
+    # minidump, same as DebugImage; each degrades gracefully if its structs weren't captured.
     if options.minidump:
         parsers_to_run = [p for p in parser_util.get_parsers()
-                          if p.cls.__name__ == 'DebugImage'
-                          or (p.cls.__name__ == 'ZoneInfo' and getattr(options, 'ZoneInfo', False))]
+                          if p.cls.__name__ in ('DebugImage', 'ZoneInfo', 'DumpTasks')]
     else:
         parsers_to_run = [p for p in parser_util.get_parsers()
                           if getattr(options, p.cls.__name__)
