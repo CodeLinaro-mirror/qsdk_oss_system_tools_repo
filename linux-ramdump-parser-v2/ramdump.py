@@ -1357,7 +1357,11 @@ class RamDump():
             5: "remote_etr.bin",
             6: "remote_caldb.bin",
             7: "remote_afc.bin",
-            8: "remote_mlo.bin"}
+            8: "remote_mlo.bin",
+            9: "remote_ast.bin",
+            10: "remote_msdu.bin",
+            11: "remote_mpdu.bin",
+            12: "remote_who.bin"}
         return switcher.get(sec_type, None)
 
     def __dump_rddm_segments(self, dump_data_vaddr, dump_path, device_id, num_seg, paging_header=False):
