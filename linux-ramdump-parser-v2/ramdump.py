@@ -2399,10 +2399,14 @@ class RamDump():
         existing_starts = set(a[1] for a in self.ebi_files)
         num_loaded = 0
         for va, pa in va_pa_pairs:
-            bin_path = os.path.join(minidump_path, '{0:X}.BIN'.format(pa))
-            if not os.path.isfile(bin_path):
-                bin_path = os.path.join(minidump_path, '{0:x}.bin'.format(pa))
-            if not os.path.isfile(bin_path):
+            bin_path = None
+            for candidate in ('{0:X}.BIN'.format(pa), '{0:x}.bin'.format(pa),
+                               '{0:x}.BIN'.format(pa), '{0:X}.bin'.format(pa)):
+                candidate_path = os.path.join(minidump_path, candidate)
+                if os.path.isfile(candidate_path):
+                    bin_path = candidate_path
+                    break
+            if bin_path is None:
                 print_out_str('!!! BIN file for pa {0:x} not found in minidump path'.format(pa))
                 continue
             size = os.path.getsize(bin_path)
