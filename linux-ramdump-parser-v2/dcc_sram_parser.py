@@ -117,6 +117,51 @@ def get_dcc_dump_addr(ddr_address):
 def get_mon_mmu_addr(ddr_address):
     return (ddr_address & 0xFFFF0000) | 0x0A28
 
+# SYDB dump_data_type table entry layout:
+#   version(4) @0x00, magic(4) @0x04, name[32] @0x08,
+#   start_addr @0x28, len @0x30. Each entry is SYDB_ENTRY_SIZE bytes.
+# The number of CPU entries preceding the dcc_sram entry varies per SoC
+# (e.g. 4 cores on 5424/Marina vs 5 cores on 96xx/Juhu), so the dcc_sram
+# entry is located by NAME rather than a fixed offset from the table base.
+SYDB_MAGIC = 0x42445953          # 'SYDB'
+SYDB_VALID_VERSIONS = (0x10, 0x14)
+SYDB_ENTRY_SIZE = 0x38
+SYDB_NAME_OFFSET = 0x8
+SYDB_NAME_SIZE = 0x20
+SYDB_START_OFFSET = 0x28
+SYDB_LEN_OFFSET = 0x30
+SYDB_MAX_ENTRIES = 64
+
+def find_sydb_entry(ramdump, table_ptr, entry_name):
+    """Walk the SYDB dump_data_type table and return (start_addr, length)
+    for the entry whose name matches entry_name, or None if not found.
+
+    Iterates fixed-size (SYDB_ENTRY_SIZE) entries starting at table_ptr,
+    validating version/magic on each entry and matching the name field.
+    This is core-count independent: the dcc_sram / mon_pt entry is located
+    by name regardless of how many CPU entries precede it.
+    """
+    matched_any = False
+    for i in range(SYDB_MAX_ENTRIES):
+        entry = table_ptr + i * SYDB_ENTRY_SIZE
+        version = ramdump.read_u32(entry, virtual=False)
+        magic = ramdump.read_u32(entry + 4, virtual=False)
+        if magic != SYDB_MAGIC or version not in SYDB_VALID_VERSIONS:
+            if matched_any:
+                break
+            continue
+        matched_any = True
+        name_bytes = ramdump.read_physical(
+            entry + SYDB_NAME_OFFSET, SYDB_NAME_SIZE, False)
+        if name_bytes is None:
+            break
+        name = name_bytes.split(b'\x00')[0]
+        if name == entry_name:
+            start_addr = ramdump.read_u32(entry + SYDB_START_OFFSET, virtual=False)
+            length = ramdump.read_u32(entry + SYDB_LEN_OFFSET, virtual=False)
+            return (start_addr, length)
+    return None
+
 # dcc_sram_config structure
 dcc_sram_config = {
     5424: {
@@ -137,6 +182,28 @@ dcc_sram_config = {
                 "start_offset": 0xBA4,
                 "size_in_bytes": 0x328,
                 "function_pointer": extract_gemnoc_poc_dbg_PCNOC
+            },
+        ]
+    },
+
+    9650: {
+        "dcc_sram_size": 0x8000,
+        "dcc_dump_addr": get_dcc_dump_addr,
+        "dumps": [
+            {
+                "start_offset": 0x6B4,
+                "size_in_bytes": 0x328,
+                "function_pointer": extract_gemnoc_poc_dbg_LLCC
+            },
+            {
+                "start_offset": 0x9E0,
+                "size_in_bytes": 0x328,
+                "function_pointer": extract_gemnoc_poc_dbg_PCNOC
+            },
+            {
+                "start_offset": 0xD08,
+                "size_in_bytes": 0x328,
+                "function_pointer": extract_gemnoc_poc_dbg_PCIE
             },
         ]
     },
@@ -176,33 +243,26 @@ def dcc_sram_parser_func(ramdump):
         return
     # print_out_str(f" Calculated address: 0x{dump_addr:08X}")
 
-    dcc_sram_struct_info = ramdump.read_u32(dump_addr, virtual=False)
-    if dcc_sram_struct_info == 0:
+    table_ptr = ramdump.read_u32(dump_addr, virtual=False)
+    if table_ptr == 0:
         print_out_str("Wrong DCC SRAM Struct Info: 0x0")
         return
-    # print_out_str(f" dcc_sram_struct_info: 0x{dcc_sram_struct_info:08X}")
+    # print_out_str(f" SysDbg table base: 0x{table_ptr:08X}")
 
-    SysdbgCPUDumpver = ramdump.read_u32( dcc_sram_struct_info, virtual=False)
-    # print_out_str(f"Dump_ver: 0x{SysdbgCPUDumpver:08X}")
-    sysdbgmagic = ramdump.read_u32( dcc_sram_struct_info + 4, virtual=False)
-    # print_out_str(f"Sysdbgmagic: 0x{sysdbgmagic:08X}")
-    if(SysdbgCPUDumpver == 0x14 and sysdbgmagic == 0x42445953):
-        print('')
-        # print_out_str("\n SysdbgCPUDumpver and sysdbgmagic match")
-    else:
-        print_out_str("\n !!! SysdbgCPUDumpver and sysdbgmagic does not match !!!")
+    # Locate the dcc_sram entry by name. The number of CPU entries before it
+    # varies per SoC (4 cores on 5424 vs 5 cores on 96xx), so a fixed offset
+    # from the table base is incorrect; search the SYDB table by name instead.
+    dcc_region = find_sydb_entry(ramdump, table_ptr, b'dcc_sram')
+    if dcc_region is None:
+        print_out_str("!!!!! No dcc_sram entry found in SysDbg table !!!!!")
         return
 
-    dcc_sram_addr = dcc_sram_struct_info + 0x28
-
-    num_elements_address = dcc_sram_addr + 0x8
-    num_elements =  ramdump.read_u32( num_elements_address, virtual=False)
+    dcc_sram_buf_start_addr, num_elements = dcc_region
     if num_elements == 0:
         print_out_str("Wrong Number of Elements: 0")
         return
     # print_out_str(f"Number of elements: {num_elements}")
 
-    dcc_sram_buf_start_addr = ramdump.read_u32(dcc_sram_addr, virtual=False)
     if dcc_sram_buf_start_addr == 0:
         print_out_str("Wrong DCC SRAM Buffer Start Address: 0x0")
         return
@@ -221,15 +281,17 @@ def dcc_sram_parser_func(ramdump):
 
     # Generate MONITOR.BIN file
     monitor_addr = get_mon_mmu_addr(ddr_address)
-    monitor_struct_info=ramdump.read_u32(monitor_addr, virtual=False)
-    monitor_start_addr=monitor_struct_info + 0x28
-    num_elements_monitor_addr = monitor_start_addr + 0x8
-    num_elements_monitor = ramdump.read_u32(num_elements_monitor_addr, virtual=False)
-    if num_elements_monitor == 0:
-        print_out_str("Wrong Number of Elements for Monitor: 0")
+    monitor_table_ptr = ramdump.read_u32(monitor_addr, virtual=False)
+    # Locate the mon_pt entry by name (core-count independent), matching the
+    # same SYDB table-walk logic used for dcc_sram above.
+    monitor_region = find_sydb_entry(ramdump, monitor_table_ptr, b'mon_pt')
+    if monitor_region is None:
+        print_out_str("!!!!! No mon_pt entry found in SysDbg table !!!!!")
     else:
-        monitor_start = ramdump.read_u32(monitor_start_addr, virtual=False)
-        if monitor_start == 0:
+        monitor_start, num_elements_monitor = monitor_region
+        if num_elements_monitor == 0:
+            print_out_str("Wrong Number of Elements for Monitor: 0")
+        elif monitor_start == 0:
             print_out_str("Wrong Monitor Start Address: 0x0")
         else:
             output_file_path = os.path.join(output_dir, 'MONITOR.bin')
