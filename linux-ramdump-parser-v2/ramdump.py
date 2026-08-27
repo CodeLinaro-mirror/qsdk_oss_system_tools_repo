@@ -775,16 +775,6 @@ class RamDump():
         if self.arm64:
             self.thread_size = 16384
 
-        text_addr = self.addr_lookup('_text')
-        if self.isELF32():
-            self.page_offset = text_addr & 0xF0000000
-        else:
-            if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
-                self.page_offset = text_addr
-            else:
-                self.page_offset = text_addr - 0x80000
-        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
-
         if is_kaslr_enabled:
             # If KASLR is enabled in dump, KASLR kernel and module offset should be used for parsing.
             # Kernel and module offset details are stored in the below IMEM region
@@ -792,6 +782,11 @@ class RamDump():
             # Kernel offset to be read from address :
             #       0x086006C8 => If magic code 0XCDEFCDEF is added at 0x086006C4 in IMEM.BIN
             #       0x086006C4 => If magic code 0XCDEFCDEF is not added at 0x086006C4 in IMEM.BIN
+            # This must run before addr_lookup('_text') below: addr_lookup() adds
+            # kaslr_kernel_offset only when self.kaslr_enabled is already True, so
+            # computing page_offset first would silently leave it un-adjusted while
+            # every later addr_lookup() (e.g. swapper_pg_dir) is KASLR-shifted,
+            # corrupting swapper_pg_dir_addr and the MMU's TTBR base.
             self.kaslr_enabled = True
             module_offset = self.read_word(0x086006BC, False)
             self.kaslr_module_offset = int(f'0x{module_offset:x}', 16)
@@ -805,6 +800,16 @@ class RamDump():
             kernel_offset = self.read_word(kernel_offset_address, False)
             self.kaslr_kernel_offset = int(f'0x{kernel_offset:x}', 16)
             print_out_str ("kaslr_kernel_offset is set as {}".format(hex(self.kaslr_kernel_offset)))
+
+        text_addr = self.addr_lookup('_text')
+        if self.isELF32():
+            self.page_offset = text_addr & 0xF0000000
+        else:
+            if (self.kernel_version[0], self.kernel_version[1]) >= (6, 1):
+                self.page_offset = text_addr
+            else:
+                self.page_offset = text_addr - 0x80000
+        print_out_str('PageOffset was set to {0:x}'.format(self.page_offset))
 
         if page_offset is not None:
             print_out_str(
@@ -821,27 +826,36 @@ class RamDump():
             ebi_filePath = self.ebi_files[0][3]
             fd = open(ebi_filePath, 'rb')
             file_content = fd.read()
-            lv = re.search("Linux version".encode('ascii', 'ignore'), file_content)
-            if lv is not None:
-                banner_addr_phys = int(hex(lv.start()), 16)
+            # A raw "Linux version" ASCII match can land anywhere in the
+            # file (e.g. inside an unrelated log blob), giving a phys_offset
+            # that isn't page-aligned and silently breaks every later
+            # page-table walk. Try every occurrence and keep the first one
+            # that yields a page-aligned, working phys_offset.
+            matches = list(re.finditer("Linux version".encode('ascii', 'ignore'), file_content))
+            found = False
+            if matches:
                 banner_addr_virt = self.addr_lookup('linux_banner')
-                if self.kaslr_enabled:
-                    banner_addr_virt = banner_addr_virt - self.kaslr_kernel_offset
-                phys_offset = banner_addr_phys - banner_addr_virt + self.ebi_start + self.page_offset
-                if self.phys_offset != phys_offset:
+                if self.is_config_defined('CONFIG_ARM64_64K_PAGES'):
+                    page_size = 0x10000
+                elif self.is_config_defined('CONFIG_ARM64_16K_PAGES'):
+                    page_size = 0x4000
+                else:
+                    page_size = 0x1000
+                for lv in matches:
+                    banner_addr_phys = int(hex(lv.start()), 16)
+                    phys_offset = banner_addr_phys - banner_addr_virt + self.ebi_start + self.page_offset
+                    if phys_offset % page_size != 0:
+                        continue
+                    if self.phys_offset == phys_offset:
+                        continue
                     self.phys_offset = phys_offset
                     print_out_str('[!!!] Physical offset was changed to {0:x}'.format(self.phys_offset))
                     print_out_str('Check for Linux banner match with changed physical offset')
-                    if not self.get_version():
-                        print_out_str('!!! Your vmlinux is probably wrong for these dumps')
-                        print_out_str('!!! Exiting now')
-                        sys.exit(1)
-                else:
-                    print_out_str('!!! Your vmlinux is probably wrong for these dumps')
-                    print_out_str('!!! Exiting now')
-                    sys.exit(1)
-            else:
-                print_out_str('!!! Linux banner is not present in dumps')
+                    if self.get_version():
+                        found = True
+                        break
+            if not found:
+                print_out_str('!!! Your vmlinux is probably wrong for these dumps')
                 print_out_str('!!! Exiting now')
                 sys.exit(1)
 
@@ -851,8 +865,6 @@ class RamDump():
         # PAGE_OFFSET + TEXT_OFFSET then we know we're using LPAE. For
         # non-LPAE it should be 0x4000 below PAGE_OFFSET + TEXT_OFFSET
         self.swapper_pg_dir = self.addr_lookup('swapper_pg_dir')
-        if self.kaslr_enabled:
-            self.swapper_pg_dir = self.swapper_pg_dir - self.kaslr_kernel_offset
         if self.swapper_pg_dir is None:
             print_out_str('!!! Could not get the swapper page directory!')
             print_out_str(
@@ -1138,9 +1150,11 @@ class RamDump():
         return True
 
     def get_version(self):
+        # addr_lookup() already adds kaslr_kernel_offset when KASLR is
+        # enabled, and self.page_offset is likewise KASLR-adjusted, so the
+        # offset cancels out in the "- self.page_offset" below without
+        # needing to strip it back out here first.
         banner_addr = self.addr_lookup('linux_banner')
-        if self.kaslr_enabled:
-                    banner_addr = banner_addr - self.kaslr_kernel_offset
         if banner_addr is not None:
             # Don't try virt to phys yet, compute manually
             banner_addr = banner_addr - self.page_offset + self.phys_offset
@@ -1206,47 +1220,73 @@ class RamDump():
             return False
 
     def set_module_address(self):
-        # Set Module start address
-        if (self.isELF64()):
-            if ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
-                if not self.is_config_defined('CONFIG_KASAN'):
-                    config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
-                    print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
-                    if config_value is not None:
-                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
-                           self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64))
-                        else:
-                            if self.kaslr_enabled:
-                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000 + self.kaslr_kernel_offset
-                            else:
-                                self.mod_start_addr = ((-(1 << (int(config_value) - 1))) + (1 << 64)) + 0x8000000
-                    else:
-                        print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
-                        return False
-                else:
-                    # If CONFIG_KASAN is enabled for 64 bit 5.4 kernel, Module start address extraction changes
-                    # Kasan is not supported for 32 bit profile
-                    config_value = self.get_config_data('CONFIG_KASAN_SHADOW_OFFSET')
-                    print_out_str('CONFIG_KASAN_SHADOW_OFFSET={0}'.format(config_value))
-                    if config_value is not None:
-                        if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 1)):
-                            self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16))
-                        else:
-                            self.mod_start_addr = ((1 << (64 - 3)) + int(config_value, 16)) + 0x8000000
-                    else:
-                        print_out_str("CONFIG_KASAN_SHADOW_OFFSET not found!!!")
-                        return False
-            else:
-                self.mod_start_addr = self.page_offset - 0x4000000
+        is_elf64 = self.isELF64()
+        kernel_version = (self.kernel_version[0], self.kernel_version[1])
+
+        # On kernel >= 6.4, module_alloc_base was split upstream (kernel.org
+        # commit 3e35d303ab7d) into module_direct_base and module_plt_base.
+        # Read the actual runtime values straight from vmlinux/the dump
+        # instead of deriving them, so we don't depend on kaslr_kernel_offset
+        # bookkeeping or on the customer relaying the offset through IMEM.
+        self.module_direct_base = None
+        self.module_plt_base = None
+
+        if is_elf64 and kernel_version >= (6, 4):
+            module_direct_base_addr = self.addr_lookup('module_direct_base')
+            module_plt_base_addr = self.addr_lookup('module_plt_base')
+            if module_direct_base_addr is not None:
+                self.module_direct_base = self.read_u64(module_direct_base_addr)
+            if module_plt_base_addr is not None:
+                self.module_plt_base = self.read_u64(module_plt_base_addr)
+
+        # Prefer runtime addresses when available; otherwise compute the
+        # module start address from the kernel layout.
+        if self.module_direct_base is not None and self.module_plt_base is not None:
+            computed_start_addr = min(self.module_direct_base, self.module_plt_base)
+            print_out_str('module_direct_base was read as 0x{0:x}'.format(self.module_direct_base))
+            print_out_str('module_plt_base was read as 0x{0:x}'.format(self.module_plt_base))
         else:
-            self.mod_start_addr = self.page_offset - 0x1000000
+            if is_elf64 and kernel_version >= (6, 4):
+                print_out_str('module_direct_base/module_plt_base symbols not resolved, falling back to computed module start address')
+
+            if not is_elf64:
+                computed_start_addr = self.page_offset - 0x1000000
+            elif kernel_version < (5, 4):
+                computed_start_addr = self.page_offset - 0x4000000
+            elif not self.is_config_defined('CONFIG_KASAN'):
+                config_value = self.get_config_data('CONFIG_ARM64_VA_BITS')
+                print_out_str('CONFIG_ARM64_VA_BITS={0}'.format(config_value))
+                if config_value is None:
+                    print_out_str("CONFIG_ARM64_VA_BITS not found!!!")
+                    return False
+
+                computed_start_addr = (-(1 << (int(config_value) - 1))) + (1 << 64)
+                if kernel_version < (6, 1):
+                    # Legacy 5.4-6.0 kernels derive the module window from
+                    # the KASLR-shifted kernel layout.
+                    computed_start_addr += 0x8000000
+                    if self.kaslr_enabled:
+                        computed_start_addr += self.kaslr_kernel_offset
+            else:
+                # CONFIG_KASAN changes module address layout for 64-bit kernels.
+                config_value = self.get_config_data('CONFIG_KASAN_SHADOW_OFFSET')
+                print_out_str('CONFIG_KASAN_SHADOW_OFFSET={0}'.format(config_value))
+                if config_value is None:
+                    print_out_str("CONFIG_KASAN_SHADOW_OFFSET not found!!!")
+                    return False
+
+                computed_start_addr = (1 << (64 - 3)) + int(config_value, 16)
+                if kernel_version < (6, 1):
+                    computed_start_addr += 0x8000000
+
+        self.mod_start_addr = computed_start_addr
         print_out_str('Module start address was set to 0x{0:x}'.format(self.mod_start_addr))
 
         # Set Module end address
-        if (self.isELF64()):
-            if ((self.kernel_version[0], self.kernel_version[1]) >= (6, 4)):
+        if is_elf64:
+            if kernel_version >= (6, 4):
                 self.mod_end_addr = self.mod_start_addr + 0x80000000
-            elif ((self.kernel_version[0], self.kernel_version[1]) >= (5, 4)):
+            elif kernel_version >= (5, 4):
                 self.mod_end_addr = self.mod_start_addr + 0x8000000
             else:
                 self.mod_end_addr = self.page_offset
@@ -2638,19 +2678,47 @@ class RamDump():
             vmalloc_offset = 0x800000
             vmalloc_start = self.read_u32(high_mem_addr) + vmalloc_offset & (~int(vmalloc_offset - 0x1))
 
+        if (check_modules == 1 and self.isELF64() and (self.kernel_version[0], self.kernel_version[1]) >= (6, 4)
+                and self.module_direct_base is not None and self.module_plt_base is not None
+                and ((self.module_direct_base <= addr < self.module_direct_base + 0x8000000)
+                     or (self.module_plt_base <= addr < self.module_plt_base + 0x80000000))):
+            module_name = self.unwind.get_module_name_from_addr(addr)
+            if module_name is not None:
+                return module_name
+            # Address fell inside the direct/PLT module windows but isn't
+            # actually within any loaded module's range (the windows are
+            # sized off kernel constants and can overlap the kernel image
+            # itself under KASLR) -- fall through to the kernel symbol
+            # table lookup below instead of reporting UNKNOWN.
+
         if(self.Is_Hawkeye() and self.isELF64() and check_modules == 1):
-            if (self.kaslr_enabled and self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and ((0xffffffc008000000 + self.kaslr_module_offset + self.kaslr_kernel_offset) <= addr < (0xffffffc010000000 + self.kaslr_module_offset + self.kaslr_kernel_offset)):
-                return self.unwind.get_module_name_from_addr(addr)
+            if (self.kaslr_enabled
+                    and (self.kernel_version[0], self.kernel_version[1]) >= (5, 4)
+                    and ((0xffffffc008000000 + self.kaslr_module_offset + self.kaslr_kernel_offset)
+                         <= addr < (0xffffffc010000000 + self.kaslr_module_offset + self.kaslr_kernel_offset))):
+                module_name = self.unwind.get_module_name_from_addr(addr)
+                if module_name is not None:
+                    return module_name
             elif (self.kernel_version[0], self.kernel_version[1]) >= (5, 4) and (self.mod_start_addr <= addr <= self.mod_end_addr):
-                return self.unwind.get_module_name_from_addr(addr)
+                module_name = self.unwind.get_module_name_from_addr(addr)
+                if module_name is not None:
+                    return module_name
             elif (0xffffffbffc000000 <= addr < 0xffffffc000000000):
-                return self.unwind.get_module_name_from_addr(addr)
+                module_name = self.unwind.get_module_name_from_addr(addr)
+                if module_name is not None:
+                    return module_name
         elif(self.Is_Hawkeye() and self.isELF32() and check_modules == 1 and (0x7f000000 <= addr < 0x7fe00000)):
-            return self.unwind.get_module_name_from_addr(addr)
+            module_name = self.unwind.get_module_name_from_addr(addr)
+            if module_name is not None:
+                return module_name
         elif(self.Is_Hawkeye() and self.isELF32() and check_modules == 1 and self.is_config_defined('CONFIG_ARM_MODULE_PLTS') and (vmalloc_start <= addr < 0xff800000)):
-            return self.unwind.get_module_name_from_addr(addr)
+            module_name = self.unwind.get_module_name_from_addr(addr)
+            if module_name is not None:
+                return module_name
         if (check_modules == 1 and (0xbf000000 <= addr < 0xbfe00000)):
-            return self.unwind.get_module_name_from_addr(addr)
+            module_name = self.unwind.get_module_name_from_addr(addr)
+            if module_name is not None:
+                return module_name
 
         if (addr < self.page_offset and check_modules == 1):
             module_name = self.unwind.get_module_name_from_addr(addr)
