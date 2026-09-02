@@ -262,6 +262,28 @@ class Board5424(Board):
         self.imem_start =  0x08600658
         self.wdog_addr = 0x08600658
 
+class Board5210(Board):
+    """Hermosa/IPQ5210 board; retains the Marina/Hawkeye memory properties."""
+    def __init__(self):
+        super(Board5210, self).__init__()
+        self.board_num = 5210
+        self.cpu = 'CORTEXA53'
+        self.ram_start = 0x80000000
+        self.phys_offset = 0x80000000
+        self.imem_start =  0x08600658
+        self.wdog_addr = 0x08600658
+
+class Board9650(Board):
+    """Juhu/IPQ9650 board; retains the Hermosa memory properties."""
+    def __init__(self):
+        super(Board9650, self).__init__()
+        self.board_num = 9650
+        self.cpu = 'CORTEXA55'
+        self.ram_start = 0x80000000
+        self.phys_offset = 0x80000000
+        self.imem_start =  0x08600658
+        self.wdog_addr = 0x08600658
+
 boards = []
 boards.append(Board8916(socid=206, smem_addr=0xe200000))
 boards.append(Board8916(socid=206, smem_addr=0x6300000))
@@ -408,6 +430,8 @@ boards.append(Board4018(socid=272, smem_addr=0x87e00000))
 boards.append(Board8074(socid=293, smem_addr=0x87e00000))
 boards.append(Board9574())
 boards.append(Board5424())
+boards.append(Board5210())
+boards.append(Board9650())
 
 def get_supported_boards():
     """ Called by other part of the code to get a list of boards """

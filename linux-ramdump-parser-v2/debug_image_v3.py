@@ -33,7 +33,7 @@ class DebugImage_v3():
         if ram_dump.Is_Hawkeye():
             core = 0
 
-        if ram_dump.Is_Marina():
+        if ram_dump.Is_Marina() or ram_dump.Is_Hermosa() or ram_dump.Is_Juhu():
             resetReasonAddrSysdbg = 0x86007b0
         elif ram_dump.is_config_defined('CONFIG_IPQ_APSS_8074') or ram_dump.is_config_defined('CONFIG_IPQ_APSS_807x'):
             resetReasonAddrSysdbg = 0x8600024

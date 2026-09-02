@@ -2922,7 +2922,7 @@ class RamDump():
             return False
 
     def Is_Hawkeye(self):
-        if (self.hw_id == 8074 or self.Is_Alder() or self.Is_Marina()):
+        if (self.hw_id == 8074 or self.Is_Alder() or self.Is_Marina() or self.Is_Hermosa() or self.Is_Juhu()):
             return True
         else:
             return False
@@ -2935,6 +2935,18 @@ class RamDump():
 
     def Is_Marina(self):
         if (self.hw_id == 5424):
+            return True
+        else:
+            return False
+
+    def Is_Hermosa(self):
+        if (self.hw_id == 5210):
+            return True
+        else:
+            return False
+
+    def Is_Juhu(self):
+        if (self.hw_id == 9650 or self.is_config_defined('CONFIG_IPQ_APSS_9650')):
             return True
         else:
             return False
