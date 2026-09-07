@@ -687,11 +687,20 @@ if __name__ == '__main__':
     # so if the user passed that option then `options' will have a
     # p.cls.__name__ attribute.
     # When minidump is provided, only run parse-debug-info regardless of --everything.
-    # --print-vmstats (ZoneInfo) and --print-tasks (DumpTasks) also run by default under
-    # minidump, same as DebugImage; each degrades gracefully if its structs weren't captured.
+    # --print-vmstats (ZoneInfo), --print-tasks (DumpTasks), and --print-core-stack
+    # (CoreStackDump) also run by default under minidump, same as DebugImage; each
+    # degrades gracefully if its structs/files weren't captured.
     if options.minidump:
-        parsers_to_run = [p for p in parser_util.get_parsers()
-                          if p.cls.__name__ in ('DebugImage', 'ZoneInfo', 'DumpTasks')]
+        # DebugImage must run before CoreStackDump: it's what writes each
+        # core's core<N>_regs.cmm (Hawkeye TZ dump parsing), which
+        # CoreStackDump's FP-chain walk needs to resolve sp_el1/x29/pc. The
+        # alphabetical glob order in get_parsers() would otherwise put
+        # CoreStackDump ('c') ahead of DebugImage ('d'), silently degrading
+        # it to the noisier linear-scan fallback on a fresh --outdir.
+        minidump_parser_order = ('DebugImage', 'ZoneInfo', 'DumpTasks', 'CoreStackDump')
+        parsers_to_run = sorted(
+            (p for p in parser_util.get_parsers() if p.cls.__name__ in minidump_parser_order),
+            key=lambda p: minidump_parser_order.index(p.cls.__name__))
     else:
         parsers_to_run = [p for p in parser_util.get_parsers()
                           if getattr(options, p.cls.__name__)

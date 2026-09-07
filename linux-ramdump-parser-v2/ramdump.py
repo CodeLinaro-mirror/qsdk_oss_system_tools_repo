@@ -953,7 +953,7 @@ class RamDump():
                 self.module_symtab_offset = self.field_offset('struct mod_kallsyms','symtab')
                 self.module_strtab_offset = self.field_offset('struct mod_kallsyms','strtab')
                 self.module_symtab_count_offset = self.field_offset('struct mod_kallsyms','num_symtab')
-                if self.ko_path is not None:
+                if self.ko_path is not None and not self.IsMinidump:
                     print_out_str("CONFIG_KALLSYMS is set. Hence not parsing ko modules generically. Modules would be loaded for specific cases")
             else:
                 # CONFIG_KALLSYMS is not set
@@ -963,9 +963,16 @@ class RamDump():
                 self.module_strtab_offset = -1
                 self.module_symtab_count_offset = -1
                 print_out_str("CONFIG_KALLSYMS not set")
-                if self.ko_path is not None:
+                if self.ko_path is not None and not self.IsMinidump:
                     list_walker = llist.ListWalker(self, self.mod_start, self.next_mod_offset)
                     list_walker.walk(self.mod_start, self.add_sym_file)
+
+            # Minidumps rarely capture the mod_kallsyms symtab/strtab arrays
+            # (or the modules list itself) regardless of CONFIG_KALLSYMS, so
+            # load .ko symbols from MOD_INFO.txt-named struct module blobs
+            # instead of the in-memory symtab/list-walk paths above.
+            if self.ko_path is not None and self.IsMinidump:
+                self.add_minidump_sym_files()
 
         else:
             self.module_symtab_offset = self.field_offset('struct module','symtab')
@@ -995,6 +1002,16 @@ class RamDump():
         else:
             self.symtab_size = self.sizeof('struct elf32_sym')
 
+    def get_module_core_addr(self, mod_list):
+        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
+            if self.module_layout_core_offset is None or self.module_offset is None:
+                return None
+            return self.read_word(mod_list + self.module_layout_core_offset + self.module_offset)
+        else:
+            if self.module_core_offset is None:
+                return None
+            return self.read_word(mod_list + self.module_core_offset)
+
     def add_sym_file(self, mod_list):
 
         name = self.read_cstring(mod_list + self.mod_name_offset, 50)
@@ -1007,10 +1024,7 @@ class RamDump():
         if len(g) < 1:
             return
 
-        if (self.kernel_version[0], self.kernel_version[1]) >= (5, 4):
-            module_core_addr = self.read_word(mod_list + self.module_layout_core_offset + self.module_offset)
-        else:
-            module_core_addr = self.read_word(mod_list + self.module_core_offset)
+        module_core_addr = self.get_module_core_addr(mod_list)
         self.gdbmi.add_sym_file(g[0], module_core_addr)
 
     def __del__(self):
@@ -2489,6 +2503,37 @@ class RamDump():
                 continue
             tasks.append((name, va))
         return tasks
+
+    def find_minidump_modules(self):
+        """Named MOD_INFO.txt globals whose captured blob is exactly
+        sizeof(struct module) — a single struct module captured standalone,
+        not reachable by walking the (uncaptured) `modules` list."""
+        module_size = self.sizeof('struct module')
+        if not module_size:
+            return []
+        mods = []
+        for name, va in self.minidump_named_vars:
+            if self.minidump_captured_size(va) == module_size:
+                mods.append((name, va))
+        return mods
+
+    def add_minidump_sym_files(self):
+        if self.ko_path is None:
+            return
+        mods = self.find_minidump_modules()
+        print_out_str("Minidump: found {0} candidate module(s) in MOD_INFO.txt".format(len(mods)))
+        loaded = 0
+        for name, mod_va in mods:
+            ko_glob = os.path.join(self.ko_path, name.replace("_", "[_-]") + ".ko")
+            g = glob.glob(ko_glob)
+            if len(g) < 1:
+                continue
+            module_core_addr = self.get_module_core_addr(mod_va)
+            if module_core_addr is None:
+                continue
+            self.gdbmi.add_sym_file(g[0], module_core_addr)
+            loaded += 1
+        print_out_str("Minidump: loaded symbols for {0} module(s)".format(loaded))
 
     def setup_symbol_tables(self):
         stream = os.popen(self.nm_path + ' -nS ' + self.vmlinux)
