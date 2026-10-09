@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
-: '
-Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
-SPDX-License-Identifier: GPL-2.0-only
-'
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: GPL-2.0-only
 
 """
 Root filesystem decryption tool.
 
 Usage: crypt_rootfs_xts.py decrypt <input_file> <key_file>
-                           <output_file>
+                           <output_file> [iv]
 
 Implements aes-xts-plain64 decryption algorithm of dm-crypt,
 runs fully in userspace.
 
+With the optional [iv] (16 bytes, 32 hex chars), the whole input is
+processed as a single XTS data unit using that IV as the tweak, with no
+sector padding (same as "openssl enc -aes-*-xts -iv <iv>"). Input length
+must be a non-zero multiple of 16 bytes.
+
 Examples:
     # Decrypt a file
     python3 crypt_rootfs_xts.py decrypt encrypted.img key.bin decrypted.img
+
+    # Decrypt a file with an explicit IV
+    python3 crypt_rootfs_xts.py decrypt encrypted.bin key.bin decrypted.bin \\
+        00000000000000000000000000000001
 
 """
 
@@ -155,6 +162,51 @@ def decrypt(encrypted_file: BinaryIO, decrypted_file: BinaryIO, key: bytes):
         sector_counter += 1
 
 
+def encrypt_iv(plain_file: BinaryIO, encrypted_file: BinaryIO, key: bytes,
+               iv: bytes):
+    """
+    Encrypt a file as a single AES-XTS data unit with the specified IV
+    as the tweak. No sector split and no padding.
+
+    :param plain_file: Source unencrypted binary file object
+    :param encrypted_file: Target encrypted binary file object
+    :param key: Encryption key (32 bytes for AES-128 or 64 bytes for AES-256)
+    :param iv: XTS tweak (16 bytes)
+    """
+
+    plain_data = plain_file.read()
+    if len(plain_data) == 0 or len(plain_data) % 16 != 0:
+        raise ValueError(f'Input length {len(plain_data)} must be a non-zero '
+                         f'multiple of 16 bytes')
+
+    encryptor = Cipher(algorithm=AES(key), mode=XTS(iv),
+                       backend=_backend).encryptor()
+    encrypted_file.write(encryptor.update(plain_data) + encryptor.finalize())
+
+
+def decrypt_iv(encrypted_file: BinaryIO, decrypted_file: BinaryIO, key: bytes,
+               iv: bytes):
+    """
+    Decrypt a file as a single AES-XTS data unit with the specified IV
+    as the tweak. No sector split and no padding.
+
+    :param encrypted_file: Source encrypted binary file object
+    :param decrypted_file: Target decrypted binary file object
+    :param key: Decryption key (32 bytes for AES-128 or 64 bytes for AES-256)
+    :param iv: XTS tweak (16 bytes)
+    """
+
+    encrypted_data = encrypted_file.read()
+    if len(encrypted_data) == 0 or len(encrypted_data) % 16 != 0:
+        raise ValueError(f'Input length {len(encrypted_data)} must be a '
+                         f'non-zero multiple of 16 bytes')
+
+    decryptor = Cipher(algorithm=AES(key), mode=XTS(iv),
+                       backend=_backend).decryptor()
+    decrypted_file.write(decryptor.update(encrypted_data) +
+                         decryptor.finalize())
+
+
 def generate_dm_entry(encrypted_file_name: str, key: bytes) -> str:
     """
     Generate a crypt table (crypttab) mapping line for the specified
@@ -195,9 +247,9 @@ def generate_dm_entry(encrypted_file_name: str, key: bytes) -> str:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 5:
+    if len(sys.argv) not in (5, 6):
         print("Usage: crypt_rootfs_xts <encrypt|decrypt> <input_file> "
-              "<key_file> <output_file>")
+              "<key_file> <output_file> [iv]")
         print("\nExamples:")
         print("  # Encrypt a file")
         print("  python3 crypt_rootfs_xts encrypt plaintext.img "
@@ -206,6 +258,10 @@ if __name__ == '__main__':
         print("  # Decrypt a file")
         print("  python3 crypt_rootfs_xts decrypt encrypted.img "
               "key.bin decrypted.img")
+        print("")
+        print("  # Decrypt a file with an explicit IV")
+        print("  python3 crypt_rootfs_xts decrypt encrypted.bin "
+              "key.bin decrypted.bin 00000000000000000000000000000001")
         print("\nDescription:")
         print("  Encrypts or decrypts an image file using "
               "AES-XTS-plain64 algorithm")
@@ -214,12 +270,25 @@ if __name__ == '__main__':
         print("  - key_file: Path to the encryption key file "
               "(32 or 64 bytes)")
         print("  - output_file: Path where output file will be saved")
+        print("  - iv: Optional 16-byte IV/tweak (32 hex chars); the whole "
+              "file is")
+        print("        processed as one XTS data unit, without sector "
+              "padding")
         sys.exit(1)
 
     operation = sys.argv[1].lower()
     input_file = sys.argv[2]
     key_file = sys.argv[3]
     output_file = sys.argv[4]
+    iv = None
+    if len(sys.argv) == 6:
+        try:
+            iv = bytes.fromhex(sys.argv[5])
+        except ValueError:
+            iv = None
+        if iv is None or len(iv) != 16:
+            print("Error: IV must be 16 bytes (32 hex chars)")
+            sys.exit(1)
 
     # Validate operation
     if operation not in ['encrypt', 'decrypt']:
@@ -253,9 +322,15 @@ if __name__ == '__main__':
         with open(input_file, 'rb') as input_f, \
              open(output_file, 'wb') as output_f:
             if operation == 'encrypt':
-                encrypt(input_f, output_f, key_data)
+                if iv is None:
+                    encrypt(input_f, output_f, key_data)
+                else:
+                    encrypt_iv(input_f, output_f, key_data, iv)
             else:  # decrypt
-                decrypt(input_f, output_f, key_data)
+                if iv is None:
+                    decrypt(input_f, output_f, key_data)
+                else:
+                    decrypt_iv(input_f, output_f, key_data, iv)
 
         # Set file ownership if running as root
         uid = os.getuid()
@@ -268,9 +343,12 @@ if __name__ == '__main__':
         print(f"  Input:  {input_file}")
         print(f"  Output: {output_file}")
         print(f"  Key:    {key_file} ({len(key_data)} bytes)")
+        if iv is not None:
+            print(f"  IV:     {iv.hex()}")
 
-        # Generate dm entry for encryption
-        if operation == 'encrypt':
+        # Generate dm entry for encryption (sector mode only; the IV mode
+        # output is not a dm-crypt aes-xts-plain64 image)
+        if operation == 'encrypt' and iv is None:
             dm_entry = generate_dm_entry(output_file, key_data)
             dm_file = output_file + ".dm"
             with open(dm_file, 'w') as f:
