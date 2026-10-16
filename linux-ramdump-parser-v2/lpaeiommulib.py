@@ -157,7 +157,7 @@ def get_coalesced_mappings(flat_mappings):
     cc = OrderedDict(sorted(cc.items()))
     return cc
 
-def parse_long_form_tables(dump, d):
+def parse_long_form_tables(dump, d, domain_num=None):
     fname = 'msm_iommu_domain_%02d.txt' % (d.domain_num)
     with dump.open_file(fname) as outfile:
 

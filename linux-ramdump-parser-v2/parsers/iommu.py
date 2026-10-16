@@ -1,4 +1,4 @@
-# Copyright (c) 2013-2014,2019 The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2016, 2020 The Linux Foundation. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 and
@@ -14,9 +14,10 @@ import math
 from print_out import print_out_str
 from parser_util import register_parser, RamParser
 from sizes import SZ_4K, SZ_64K, SZ_1M, SZ_16M, get_order, order_size_strings
-from iommulib import IommuLib, WIN_SMMU_DOMAIN, WIN_SMMU_AARCH64_DOMAIN, ARM_SMMU_DOMAIN
+from iommulib import IommuLib, MSM_SMMU_DOMAIN, MSM_SMMU_AARCH64_DOMAIN, ARM_SMMU_DOMAIN, DPD_SMMU_DOMAIN
 from lpaeiommulib import parse_long_form_tables
 from aarch64iommulib import parse_aarch64_tables
+from dpd_proxy_iommulib import parse_dpd_proxy_tables
 
 
 @register_parser('--print-iommu-pg-tables', 'Print IOMMU page tables')
@@ -249,7 +250,7 @@ class IOMMU(RamParser):
 
     def create_collapsed_mapping(self, flat_mapping):
         collapsed_mapping = {}
-        if len(list(flat_mapping.keys())) > 0:
+        if len(flat_mapping.keys()) > 0:
             virt_addrs = sorted(flat_mapping.keys())
             start_map = prev_map = flat_mapping[virt_addrs[0]]
             last_mapping = False
@@ -307,7 +308,7 @@ class IOMMU(RamParser):
 
     def parse_short_form_tables(self, d, domain_num):
         self.out_file = self.ramdump.open_file(
-            'msm_iommu_domain_%02d.txt' % (domain_num))
+            'msm_iommu_domain_%02d_0x%12X.txt' % (domain_num, d.pg_table))
         redirect = 'OFF'
         if d.redirect is None:
             redirect = 'UNKNOWN'
@@ -342,13 +343,13 @@ class IOMMU(RamParser):
                 '[!] WARNING: IOMMU domains was not found in this build. No IOMMU page tables will be generated')
             return
 
-        print(self.domain_list)
-
         for (domain_num, d) in enumerate(self.domain_list):
             if self.ramdump.is_config_defined('CONFIG_IOMMU_LPAE'):
                 parse_long_form_tables(self.ramdump, d, domain_num)
-            elif (d.domain_type == WIN_SMMU_DOMAIN):
+            elif (d.domain_type == MSM_SMMU_DOMAIN):
                 self.parse_short_form_tables(d, domain_num)
             elif ((d.domain_type == ARM_SMMU_DOMAIN) or
-                    (d.domain_type == WIN_SMMU_AARCH64_DOMAIN)):
+                    (d.domain_type == MSM_SMMU_AARCH64_DOMAIN)):
                 parse_aarch64_tables(self.ramdump, d, domain_num)
+            elif d.domain_type == DPD_SMMU_DOMAIN:
+                parse_dpd_proxy_tables(self.ramdump, d, domain_num)
