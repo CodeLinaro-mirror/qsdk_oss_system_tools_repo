@@ -660,13 +660,12 @@ if __name__ == '__main__':
             print_out_str('!!! etr region not found in device-tree')
         print_out_str('--------- end q6_etr extraction ---------')
 
-    if not options.minidump:
-        print_out_str('\n--------- begin glink log parsing ---------\n')
-        dump.get_glink_logging(options.outdir)
-        print_out_str('\n--------- end glink log parsing ---------\n')
-        print_out_str('\n--------- begin smp2p log parsing ---------\n')
-        dump.get_smp2p_logging(options.outdir)
-        print_out_str('\n--------- begin smp2p log parsing ---------\n')
+    print_out_str('\n--------- begin glink log parsing ---------\n')
+    dump.get_glink_logging(options.outdir)
+    print_out_str('\n--------- end glink log parsing ---------\n')
+    print_out_str('\n--------- begin smp2p log parsing ---------\n')
+    dump.get_smp2p_logging(options.outdir)
+    print_out_str('\n--------- begin smp2p log parsing ---------\n')
 
     if options.qdss:
         print_out_str('!!! --parse-qdss is now deprecated')
