@@ -208,6 +208,24 @@ class GdbMI(object):
         result = self._run_for_one('print /x &{0}'.format(symbol))
         return int(result.split(' ')[-1], 16)
 
+    def address_of_symbol_from_file(self, symbol, file_name):
+        """Returns the address of `symbol' defined in `file_name'. The
+        cache is skipped since the same symbol may be defined by more
+        than one file."""
+        cmd = 'print /x &\'{0}\'::{1}'.format(file_name, symbol)
+        result = self._run(cmd, skip_cache=True, save_in_cache=False)
+        if len(result.lines) != 1:
+            raise GdbMIException(
+                cmd, '\n'.join(result.lines + result.oob_lines))
+        return int(result.lines[0].split(' ')[-1], 16)
+
+    def set_priority_namespace(self, filename):
+        """Set `filename' as the priority namespace for symbol lookups
+        and drop results cached under the previous namespace."""
+        self._run("list '{0}':1".format(filename), skip_cache=True,
+                  save_in_cache=False)
+        self._cache = {}
+
     def get_symbol_info_fail_safe(self, address):
         """Returns a GdbSymbol representing the nearest symbol found at
         `address'."""

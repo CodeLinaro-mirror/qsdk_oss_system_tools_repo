@@ -656,6 +656,10 @@ class RamDump():
         self.ath12k = ath12k
         self.IsMinidump = minidump
         self.kaslr_enabled = False
+        self.page_shift = 12
+        self.s2_walk = False
+        self.iommu_pg_table_format = 'default'
+        self.arm_smmu_v12 = False
 
         if self.ko_path is not None and os.path.isfile(self.ko_path):
             self.ko_path = os.path.dirname(self.ko_path)
@@ -929,6 +933,10 @@ class RamDump():
             print_out_str(
                 '!!! This is really bad and probably indicates RAM corruption')
             print_out_str('!!! Some features may be disabled!')
+        else:
+            page_shift = self.get_config_data('CONFIG_ARM64_PAGE_SHIFT')
+            if page_shift is not None:
+                self.page_shift = int(page_shift)
 
         # CONFIG_DEBUG_INFO_REDUCED will reduce debug info and dumps cannot be parsed.
         if self.CONFIG_DEBUG_INFO_REDUCED:
@@ -2596,6 +2604,28 @@ class RamDump():
         except gdbmi.GdbMIException:
             pass
 
+    def address_of(self, symbol):
+        return self.addr_lookup(symbol)
+
+    def address_of_symbol_from_file(self, symbol, file_name):
+        """Returns the address of `symbol' defined in `file_name', or
+        None if it cannot be resolved."""
+        try:
+            addr = self.gdbmi.address_of_symbol_from_file(symbol, file_name)
+        except gdbmi.GdbMIException:
+            return None
+        if self.kaslr_enabled:
+            addr += self.kaslr_kernel_offset
+        return addr
+
+    def set_priority_namespace(self, filename):
+        """Set `filename' as the priority namespace for gdb symbol
+        lookups, so that types/symbols defined there take precedence."""
+        try:
+            self.gdbmi.set_priority_namespace(filename)
+        except gdbmi.GdbMIException:
+            pass
+
     def symbol_lookup_fail_safe(self, addr):
         try:
             return self.gdbmi.get_symbol_info_fail_safe(addr)
@@ -2940,7 +2970,7 @@ class RamDump():
         cstring_addr = virt + self.field_offset(struct_name, field)
         return self.read_cstring(self.read_word(cstring_addr), max_length)
 
-    def read_cstring(self, address, max_length, virtual=True, cpu=None, trace=False):
+    def read_cstring(self, address, max_length=100, virtual=True, cpu=None, trace=False):
         addr = address
         if virtual:
             if cpu is not None:
@@ -2959,6 +2989,28 @@ class RamDump():
             return a.split('\0')[0]
         else:
             return s
+
+    def read_pointer(self, addr_or_name, virtual=True, cpu=None):
+        """Reads `addr_or_name' as a pointer variable, 32-bit or 64-bit
+        depending on the architecture, and returns its value."""
+        fn = self.read_u32 if self.sizeof('void *') == 4 else self.read_u64
+        return fn(addr_or_name, virtual, cpu=cpu)
+
+    def win_safe_name_for_path(self, name):
+        """Sanitize a string to be safe for use as a file or folder name
+        on Windows as well as Linux."""
+        name = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', name)
+        name = re.sub(r'[ .]+$', '', name)
+        if not name:
+            name = '_unknown'
+        reserved_names = {
+            'CON', 'PRN', 'AUX', 'NUL',
+            'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+            'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+        }
+        if name.split('.')[0].upper() in reserved_names:
+            name = '_' + name
+        return name
 
     # returns a tuple of the result from reading from the specified fromat string
     # return None on failure
