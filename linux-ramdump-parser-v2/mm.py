@@ -372,3 +372,22 @@ class mm_page_ext:
         max_pfn_addr = self.ramdump.addr_lookup('max_pfn')
         max_pfn = self.ramdump.read_word(max_pfn_addr)
         return max_pfn
+
+
+def phys_to_virt(ramdump, phys):
+    if not ramdump.arm64:
+        return phys - ramdump.phys_offset + ramdump.page_offset
+    if ramdump.kernel_version < (4, 4, 0):
+        return None
+    if ramdump.kernel_version >= (5, 4, 0) and ramdump.kernel_version < (5, 10, 0):
+        return phys - ramdump.read_s64('physvirt_offset')
+    # ramdump.page_offset holds the kernel image base, so derive the
+    # linear map base (PAGE_OFFSET) from the configured VA size.
+    va_bits = ramdump.get_config_data('CONFIG_ARM64_VA_BITS')
+    va_bits = int(va_bits) if va_bits is not None else 39
+    if ramdump.kernel_version >= (5, 4, 0):
+        linear_base = -(1 << va_bits) & 0xffffffffffffffff
+    else:
+        linear_base = (0xffffffffffffffff << (va_bits - 1)) & 0xffffffffffffffff
+    memstart_addr = ramdump.read_s64('memstart_addr')
+    return ((phys - memstart_addr) | linear_base) & 0xffffffffffffffff
